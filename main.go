@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"MKpprlgoFrozenLake/frozenlake"
+	"fmt"
+)
 
 func main() {
-	fmt.Println("Hello World")
+	lake := frozenlake.FrozenLake3x3
+	fmt.Println(lake.LakeMap)
 }
