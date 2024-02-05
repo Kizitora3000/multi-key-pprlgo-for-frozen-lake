@@ -85,3 +85,18 @@ func (e *Environment) NextState(state position.Position, action int) position.Po
 
 	return nextState
 }
+
+func (e *Environment) Step(action int) (position.Position, int, bool) {
+	state := e.agentState
+	nextState := e.NextState(state, action)
+	reward := e.Reward(nextState)
+	done := false
+
+	// nextStateが 穴 or ゴール地点 で終了状態となる
+	// 状態毎の報酬はNewEnvironment関数のrewardsにて設定済み
+	done = e.isHole[nextState] || nextState == e.frozenLake.GoalPos
+
+	e.agentState = nextState
+
+	return nextState, reward, done
+}
