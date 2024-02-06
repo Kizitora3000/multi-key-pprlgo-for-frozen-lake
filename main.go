@@ -1,19 +1,32 @@
 package main
 
 import (
+	"MKpprlgoFrozenLake/agent"
 	"MKpprlgoFrozenLake/environment"
 	"MKpprlgoFrozenLake/frozenlake"
-	"fmt"
 )
 
-const EPISODES = 1
+const EPISODES = 1000000
 
 func main() {
 	lake := frozenlake.FrozenLake3x3
 	env := environment.NewEnvironment(lake)
+	agt := agent.NewAgent(env)
 
-	state := env.Reset()
-	nextState, reward, done := env.Step(3)
+	for episode := 0; episode < EPISODES; episode++ {
+		state := env.Reset()
+		for {
+			action := agt.ChooseRandomAction()
+			next_state, reward, done := env.Step(action)
+			agt.Learn(state, action, reward, next_state)
 
-	fmt.Println(state, nextState, reward, done)
+			if done {
+				break
+			}
+			state = next_state
+
+		}
+	}
+
+	agt.DisplayQTable()
 }
