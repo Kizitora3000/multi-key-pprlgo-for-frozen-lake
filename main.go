@@ -29,4 +29,5 @@ func main() {
 	}
 
 	agt.DisplayQTable()
+	agt.DisplayOptimalPath(env)
 }

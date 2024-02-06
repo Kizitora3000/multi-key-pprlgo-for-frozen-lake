@@ -117,3 +117,45 @@ func (a *Agent) DisplayQTable() {
 		fmt.Println()
 	}
 }
+
+func (a *Agent) DisplayOptimalPath(env *environment.Environment) {
+	currentState := env.Reset() // 環境をリセットしてスタート位置を取得
+	fmt.Println("Optimal Path: ")
+
+	// 行動インデックスに対応する方向の文字列
+	actionSymbols := map[int]string{
+		0: "↑",
+		1: "↓",
+		2: "←",
+		3: "→",
+	}
+
+	for {
+		currentState1D := a.convert2DTo1D(currentState)
+		bestAction := 0
+		bestQValue := a.Qtable[currentState1D][0]
+
+		// 最適な行動（Q値が最大の行動）を選択
+		for action, qValue := range a.Qtable[currentState1D] {
+			if qValue > bestQValue {
+				bestAction = action
+				bestQValue = qValue
+			}
+		}
+
+		// 最適な行動に基づいて次の状態を決定
+		nextState := env.NextState(currentState, bestAction)
+
+		// 経路を出力
+		if currentState == env.StartPos {
+			fmt.Println("START")
+		}
+		fmt.Printf("'state: %s,  action: %s\n", currentState, actionSymbols[bestAction])
+		currentState = nextState
+
+		if currentState == env.GoalPos {
+			fmt.Println("GOAL")
+			break // ゴールに到達したらループを終了
+		}
+	}
+}
