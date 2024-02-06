@@ -72,7 +72,7 @@ func (e *Environment) Reset() position.Position {
 
 func (e *Environment) NextState(state position.Position, action int) position.Position {
 	// 行動空間(0: "↑", 1: "↓", 2: "←", 3: "→")に基づいて移動方向を設定
-	actionMoveMap := []position.Position{{Y: 1, X: 0}, {Y: -1, X: 0}, {Y: 0, X: -1}, {Y: 0, X: 1}}
+	actionMoveMap := []position.Position{{Y: -1, X: 0}, {Y: 1, X: 0}, {Y: 0, X: -1}, {Y: 0, X: 1}}
 	move := actionMoveMap[action]
 
 	// 現在の状態(state) + 移動方向(move) = 次の状態(nextState)
