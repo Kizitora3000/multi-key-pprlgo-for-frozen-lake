@@ -2,7 +2,10 @@ package agent
 
 import (
 	"MKpprlgoFrozenLake/environment"
+	"MKpprlgoFrozenLake/mkckks"
 	"MKpprlgoFrozenLake/position"
+	"MKpprlgoFrozenLake/pprl"
+	"MKpprlgoFrozenLake/utils"
 	"fmt"
 	"math/rand"
 	"time"
@@ -55,7 +58,7 @@ func NewAgent(env *environment.Environment) *Agent {
 	}
 }
 
-func (e *Agent) Learn(state position.Position, act int, rwd int, next_state position.Position) {
+func (e *Agent) Learn(state position.Position, act int, rwd int, next_state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_list []string) {
 	state_1D := e.convert2DTo1D(state)
 	next_state_1D := e.convert2DTo1D(next_state)
 
@@ -64,11 +67,13 @@ func (e *Agent) Learn(state position.Position, act int, rwd int, next_state posi
 
 	e.Qtable[state_1D][act] = (1-e.Alpha)*e.Qtable[state_1D][act] + e.Alpha*target
 
-	// Qnew := e.Qtable[state_1D][act]
+	Qnew := e.Qtable[state_1D][act]
 	v_t := make([]float64, e.stateNum) // マジックナンバー とりあえずUCIのデータセットの血糖値は最大で501
 	w_t := make([]float64, e.actionNum)
 	v_t[state_1D] = 1
 	w_t[act] = 1
+
+	pprl.SecureQtableUpdating(v_t, w_t, Qnew, e.stateNum, e.actionNum, testContext, encryptedQtable, user_list)
 }
 
 func (e *Agent) maxValue(slice []float64) float64 {
@@ -158,4 +163,12 @@ func (a *Agent) ShowOptimalPath(env *environment.Environment) {
 			break // ゴールに到達したらループを終了
 		}
 	}
+}
+
+func (e *Agent) GetActionNum() int {
+	return e.actionNum
+}
+
+func (e *Agent) GetStateNum() int {
+	return e.stateNum
 }
