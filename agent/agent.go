@@ -92,7 +92,7 @@ func (a *Agent) ChooseRandomAction() int {
 	return rand.Intn(a.actionNum)    // 0からactionNum-1までの範囲でランダムに整数を返す
 }
 
-func (a *Agent) DisplayQTable() {
+func (a *Agent) ShowQTable() {
 	// 行動インデックスに対応する方向の文字列
 	actionSymbols := map[int]string{
 		0: "↑",
@@ -118,7 +118,7 @@ func (a *Agent) DisplayQTable() {
 	}
 }
 
-func (a *Agent) DisplayOptimalPath(env *environment.Environment) {
+func (a *Agent) ShowOptimalPath(env *environment.Environment) {
 	currentState := env.Reset() // 環境をリセットしてスタート位置を取得
 	fmt.Println("Optimal Path: ")
 
@@ -150,7 +150,7 @@ func (a *Agent) DisplayOptimalPath(env *environment.Environment) {
 		if currentState == env.StartPos {
 			fmt.Println("START")
 		}
-		fmt.Printf("'state: %s,  action: %s\n", currentState, actionSymbols[bestAction])
+		fmt.Printf("state: %s,  action: %s\n", currentState, actionSymbols[bestAction])
 		currentState = nextState
 
 		if currentState == env.GoalPos {
