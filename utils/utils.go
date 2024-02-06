@@ -58,7 +58,7 @@ var (
 		LogN:     7,
 		LogQ:     []int{35, 60, 60},
 		LogP:     []int{45, 45},
-		LogSlots: 6,
+		LogSlots: 2,
 		Scale:    1 << 30,
 	}
 
@@ -66,7 +66,7 @@ var (
 		LogN:     13,                // 13
 		LogQ:     []int{35, 60, 60}, // []int{55, 40, 40},
 		LogP:     []int{45, 45},
-		LogSlots: 6,
+		LogSlots: 2,
 		Scale:    1 << 30,
 	}
 )
