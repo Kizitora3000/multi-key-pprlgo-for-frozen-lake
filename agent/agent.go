@@ -86,3 +86,34 @@ func (e *Agent) convert2DTo1D(state position.Position) int {
 	return state.Y*e.lakeWidth + state.X
 }
 
+// ランダムに行動を選択
+func (a *Agent) ChooseRandomAction() int {
+	rand.Seed(time.Now().UnixNano()) // ランダムなシード値で初期化
+	return rand.Intn(a.actionNum)    // 0からactionNum-1までの範囲でランダムに整数を返す
+}
+
+func (a *Agent) DisplayQTable() {
+	// 行動インデックスに対応する方向の文字列
+	actionSymbols := map[int]string{
+		0: "↑",
+		1: "↓",
+		2: "←",
+		3: "→",
+	}
+
+	fmt.Println("Qtable:")
+
+	for stateIndex, actions := range a.Qtable {
+		// 状態を二次元座標に変換して表示
+		stateY := stateIndex / a.lakeWidth
+		stateX := stateIndex % a.lakeWidth
+		fmt.Printf("State (%d, %d): ", stateY, stateX)
+
+		for actionIndex, qValue := range actions {
+			// actionIndex を方向の文字列に変換して表示
+			actionSymbol := actionSymbols[actionIndex]
+			fmt.Printf("%s: %.2f ", actionSymbol, qValue)
+		}
+		fmt.Println()
+	}
+}
