@@ -13,6 +13,8 @@ type Environment struct {
 	agentState  position.Position // エージェントの現在位置
 	rewards     [][]int
 	isHole      map[position.Position]bool // True: 穴, False: 地面
+	StartPos    position.Position
+	GoalPos     position.Position
 }
 
 func NewEnvironment(lake frozenlake.FrozenLake) *Environment {
@@ -50,6 +52,8 @@ func NewEnvironment(lake frozenlake.FrozenLake) *Environment {
 		agentState:  agentState,
 		rewards:     rewards,
 		isHole:      isHole,
+		StartPos:    frozenLake.StartPos,
+		GoalPos:     frozenLake.GoalPos,
 	}
 }
 
