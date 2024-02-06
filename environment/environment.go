@@ -9,10 +9,12 @@ const GOAL_REWARD = 1000
 
 type Environment struct {
 	frozenLake  frozenlake.FrozenLake
-	actionSpace []int             // エージェントの行動空間
+	ActionSpace []int             // エージェントの行動空間 (エージェントを作成する際に行動空間の大きさが知りたいので外部に公開する)
 	agentState  position.Position // エージェントの現在位置
 	rewards     [][]int
 	isHole      map[position.Position]bool // True: 穴, False: 地面
+	StartPos    position.Position
+	GoalPos     position.Position
 }
 
 func NewEnvironment(lake frozenlake.FrozenLake) *Environment {
@@ -46,10 +48,12 @@ func NewEnvironment(lake frozenlake.FrozenLake) *Environment {
 
 	return &Environment{
 		frozenLake:  frozenLake,
-		actionSpace: actionSpace,
+		ActionSpace: actionSpace,
 		agentState:  agentState,
 		rewards:     rewards,
 		isHole:      isHole,
+		StartPos:    frozenLake.StartPos,
+		GoalPos:     frozenLake.GoalPos,
 	}
 }
 
@@ -72,7 +76,7 @@ func (e *Environment) Reset() position.Position {
 
 func (e *Environment) NextState(state position.Position, action int) position.Position {
 	// 行動空間(0: "↑", 1: "↓", 2: "←", 3: "→")に基づいて移動方向を設定
-	actionMoveMap := []position.Position{{Y: 1, X: 0}, {Y: -1, X: 0}, {Y: 0, X: -1}, {Y: 0, X: 1}}
+	actionMoveMap := []position.Position{{Y: -1, X: 0}, {Y: 1, X: 0}, {Y: 0, X: -1}, {Y: 0, X: 1}}
 	move := actionMoveMap[action]
 
 	// 現在の状態(state) + 移動方向(move) = 次の状態(nextState)
