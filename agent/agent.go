@@ -174,26 +174,16 @@ func (a *Agent) ShowOptimalPath(env *environment.Environment) {
 	}
 
 	for {
-		currentState1D := a.convert2DTo1D(currentState)
-		bestAction := 0
-		bestQValue := a.Qtable[currentState1D][0]
-
-		// 最適な行動（Q値が最大の行動）を選択
-		for action, qValue := range a.Qtable[currentState1D] {
-			if qValue > bestQValue {
-				bestAction = action
-				bestQValue = qValue
-			}
-		}
+		action := a.GreedyAction(currentState)
 
 		// 最適な行動に基づいて次の状態を決定
-		nextState := env.NextState(currentState, bestAction)
+		nextState := env.NextState(currentState, action)
 
 		// 経路を出力
 		if currentState == env.StartPos {
 			fmt.Println("START")
 		}
-		fmt.Printf("state: %s,  action: %s\n", currentState, actionSymbols[bestAction])
+		fmt.Printf("state: %s,  action: %s\n", currentState, actionSymbols[action])
 		currentState = nextState
 
 		if currentState == env.GoalPos {
