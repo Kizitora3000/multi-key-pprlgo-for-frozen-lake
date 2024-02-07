@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	EPISODES  = 200
+	// エピソード数の目安：3x3 → 32, 4x4 → 128, 5x5 → 32768, 6x6 → ? (TODO)
+	EPISODES  = 32
 	MAX_USERS = 2
 )
 
 func main() {
 	// --- set up for RL ---
-	lake := frozenlake.FrozenLake4x4
+	lake := frozenlake.FrozenLake3x3
 	env := environment.NewEnvironment(lake)
 	agt := agent.NewAgent(env)
 
