@@ -8,7 +8,6 @@ import (
 	"MKpprlgoFrozenLake/utils"
 	"fmt"
 	"math/rand"
-	"time"
 )
 
 type Agent struct {
@@ -93,8 +92,8 @@ func (e *Agent) convert2DTo1D(state position.Position) int {
 
 // ランダムに行動を選択
 func (a *Agent) ChooseRandomAction() int {
-	rand.Seed(time.Now().UnixNano()) // ランダムなシード値で初期化
-	return rand.Intn(a.actionNum)    // 0からactionNum-1までの範囲でランダムに整数を返す
+	rand.New(rand.NewSource(0))
+	return rand.Intn(a.actionNum) // 0からactionNum-1までの範囲でランダムに整数を返す
 }
 
 func (a *Agent) ShowQTable() {
