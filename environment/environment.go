@@ -103,7 +103,7 @@ func (e *Environment) NextState(state position.Position, action int) position.Po
 func (e *Environment) Step(action int) (position.Position, int, bool) {
 	state := e.agentState
 	nextState := e.NextState(state, action)
-	reward := e.Reward(nextState)
+	reward := e.Reward(state, nextState) - 1 // ステップ数が増えるごとにペナルティも増える
 	done := false
 
 	// nextStateが 穴 or ゴール地点 で終了状態となる
