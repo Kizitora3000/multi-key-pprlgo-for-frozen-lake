@@ -96,6 +96,28 @@ func (a *Agent) ChooseRandomAction() int {
 	return rand.Intn(a.actionNum) // 0からactionNum-1までの範囲でランダムに整数を返す
 }
 
+// εグリーディー方策
+func (a *Agent) EpsilonGreedyAction(state position.Position) int {
+	state_1D := a.convert2DTo1D(state)
+
+	// εより小さいランダムな値を生成してランダムに行動を選択
+	if rand.Float64() < a.Epsilon {
+		return a.ChooseRandomAction()
+	}
+
+	// 最大のQ値を持つ行動を選択
+	maxAction := 0
+	maxQValue := a.Qtable[state_1D][0]
+	for action, qValue := range a.Qtable[state_1D] {
+		if qValue > maxQValue {
+			maxAction = action
+			maxQValue = qValue
+		}
+	}
+
+	return maxAction
+}
+
 func (a *Agent) ShowQTable() {
 	// 行動インデックスに対応する方向の文字列
 	actionSymbols := map[int]string{
