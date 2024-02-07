@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	EPISODES  = 200 // 1000000
+	EPISODES  = 100 // 200
 	MAX_USERS = 2
 )
 
@@ -60,12 +60,14 @@ func main() {
 	// ---PPRL ---
 	goal_count := 0
 	for episode := 0; episode < EPISODES; episode++ {
+		// 学習の進捗率と迷路の成功率の表示
 		progress := float64(episode) / float64(EPISODES) * 100
-		fmt.Printf("\rTraining Progress: %.1f%%", progress)
+		goal_rate := float64(goal_count) / float64(EPISODES) * 100.0
+		fmt.Printf("\rTraining Progress: %.1f%% (%d/%d), Goal Rate: %.2f%%", progress, episode, EPISODES, goal_rate)
 
 		state := env.Reset()
 		for {
-			action := agt.ChooseRandomAction()
+			action := agt.EpsilonGreedyAction(state)
 			next_state, reward, done := env.Step(action)
 			agt.Learn(state, action, reward, next_state, testContext, encryptedQtable, user_list)
 
@@ -79,17 +81,13 @@ func main() {
 
 		}
 	}
-	goal_rate := float64(goal_count) / float64(EPISODES) * 100.0
-
-	// ゴールに到達する確率の計算と表示
 	fmt.Println()
-	fmt.Printf("Goal Rate: %.2f%%\n", goal_rate)
 
 	// その他デバッグ情報の表示
 	agt.ShowQTable()
-	agt.ShowOptimalPath(env)
-	fmt.Println(calcMSE(agt, encryptedQtable, testContext))
-	ShowDecryptedQTable(agt, encryptedQtable, testContext)
+	// agt.ShowOptimalPath(env)
+	// fmt.Println(calcMSE(agt, encryptedQtable, testContext))
+	// ShowDecryptedQTable(agt, encryptedQtable, testContext)
 }
 
 func calcMSE(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext, testContext *utils.TestParams) float64 {
