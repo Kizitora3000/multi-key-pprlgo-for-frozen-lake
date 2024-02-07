@@ -118,6 +118,23 @@ func (a *Agent) EpsilonGreedyAction(state position.Position) int {
 	return maxAction
 }
 
+// 貪欲方策
+func (a *Agent) GreedyAction(state position.Position) int {
+	state_1D := a.convert2DTo1D(state)
+
+	// 最大のQ値を持つ行動を選択
+	maxAction := 0
+	maxQValue := a.Qtable[state_1D][0]
+	for action, qValue := range a.Qtable[state_1D] {
+		if qValue > maxQValue {
+			maxAction = action
+			maxQValue = qValue
+		}
+	}
+
+	return maxAction
+}
+
 func (a *Agent) ShowQTable() {
 	// 行動インデックスに対応する方向の文字列
 	actionSymbols := map[int]string{
