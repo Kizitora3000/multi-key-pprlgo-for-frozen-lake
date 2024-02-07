@@ -5,7 +5,12 @@ import (
 	"MKpprlgoFrozenLake/position"
 )
 
-const GOAL_REWARD = 1000
+const (
+	SURFACE_REWARD  = 0 // 地面に移動した場合は報酬0
+	GOAL_REWARD     = 1000
+	HOLE_PENALTY    = -1 // 穴に移動した場合のペナルティ
+	OUTSIDE_PENALTY = -1 // 画面外に移動した場合のペナルティ
+)
 
 type Environment struct {
 	frozenLake  frozenlake.FrozenLake
@@ -34,10 +39,10 @@ func NewEnvironment(lake frozenlake.FrozenLake) *Environment {
 		for x, cell := range row {
 			switch cell {
 			case "o": // 地面
-				rewards[y][x] = 0
+				rewards[y][x] = SURFACE_REWARD
 				isHole[position.Position{Y: y, X: x}] = false
 			case "x": // 穴
-				rewards[y][x] = -1
+				rewards[y][x] = HOLE_PENALTY
 				isHole[position.Position{Y: y, X: x}] = true
 			}
 		}
@@ -65,7 +70,12 @@ func (e *Environment) Width() int {
 	return e.frozenLake.Width
 }
 
-func (e *Environment) Reward(nextState position.Position) int {
+func (e *Environment) Reward(state position.Position, nextState position.Position) int {
+	// 今の状態と次の状態が同じ場合 (画面外に移動した場合) は別途ペナルティを与える
+	if state == nextState {
+		return OUTSIDE_PENALTY
+	}
+
 	return e.rewards[nextState.Y][nextState.X]
 }
 
@@ -93,7 +103,7 @@ func (e *Environment) NextState(state position.Position, action int) position.Po
 func (e *Environment) Step(action int) (position.Position, int, bool) {
 	state := e.agentState
 	nextState := e.NextState(state, action)
-	reward := e.Reward(nextState)
+	reward := e.Reward(state, nextState) - 1 // ステップ数が増えるごとにペナルティも増える
 	done := false
 
 	// nextStateが 穴 or ゴール地点 で終了状態となる

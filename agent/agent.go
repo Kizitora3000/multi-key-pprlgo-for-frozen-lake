@@ -2,10 +2,12 @@ package agent
 
 import (
 	"MKpprlgoFrozenLake/environment"
+	"MKpprlgoFrozenLake/mkckks"
 	"MKpprlgoFrozenLake/position"
+	"MKpprlgoFrozenLake/pprl"
+	"MKpprlgoFrozenLake/utils"
 	"fmt"
 	"math/rand"
-	"time"
 )
 
 type Agent struct {
@@ -55,7 +57,7 @@ func NewAgent(env *environment.Environment) *Agent {
 	}
 }
 
-func (e *Agent) Learn(state position.Position, act int, rwd int, next_state position.Position) {
+func (e *Agent) Learn(state position.Position, act int, rwd int, next_state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_list []string) {
 	state_1D := e.convert2DTo1D(state)
 	next_state_1D := e.convert2DTo1D(next_state)
 
@@ -64,11 +66,13 @@ func (e *Agent) Learn(state position.Position, act int, rwd int, next_state posi
 
 	e.Qtable[state_1D][act] = (1-e.Alpha)*e.Qtable[state_1D][act] + e.Alpha*target
 
-	// Qnew := e.Qtable[state_1D][act]
+	Qnew := e.Qtable[state_1D][act]
 	v_t := make([]float64, e.stateNum) // マジックナンバー とりあえずUCIのデータセットの血糖値は最大で501
 	w_t := make([]float64, e.actionNum)
 	v_t[state_1D] = 1
 	w_t[act] = 1
+
+	pprl.SecureQtableUpdating(v_t, w_t, Qnew, e.stateNum, e.actionNum, testContext, encryptedQtable, user_list)
 }
 
 func (e *Agent) maxValue(slice []float64) float64 {
@@ -88,8 +92,47 @@ func (e *Agent) convert2DTo1D(state position.Position) int {
 
 // ランダムに行動を選択
 func (a *Agent) ChooseRandomAction() int {
-	rand.Seed(time.Now().UnixNano()) // ランダムなシード値で初期化
-	return rand.Intn(a.actionNum)    // 0からactionNum-1までの範囲でランダムに整数を返す
+	rand.New(rand.NewSource(0))
+	return rand.Intn(a.actionNum) // 0からactionNum-1までの範囲でランダムに整数を返す
+}
+
+// εグリーディー方策
+func (a *Agent) EpsilonGreedyAction(state position.Position) int {
+	state_1D := a.convert2DTo1D(state)
+
+	// εより小さいランダムな値を生成してランダムに行動を選択
+	if rand.Float64() < a.Epsilon {
+		return a.ChooseRandomAction()
+	}
+
+	// 最大のQ値を持つ行動を選択
+	maxAction := 0
+	maxQValue := a.Qtable[state_1D][0]
+	for action, qValue := range a.Qtable[state_1D] {
+		if qValue > maxQValue {
+			maxAction = action
+			maxQValue = qValue
+		}
+	}
+
+	return maxAction
+}
+
+// 貪欲方策
+func (a *Agent) GreedyAction(state position.Position) int {
+	state_1D := a.convert2DTo1D(state)
+
+	// 最大のQ値を持つ行動を選択
+	maxAction := 0
+	maxQValue := a.Qtable[state_1D][0]
+	for action, qValue := range a.Qtable[state_1D] {
+		if qValue > maxQValue {
+			maxAction = action
+			maxQValue = qValue
+		}
+	}
+
+	return maxAction
 }
 
 func (a *Agent) ShowQTable() {
@@ -158,4 +201,12 @@ func (a *Agent) ShowOptimalPath(env *environment.Environment) {
 			break // ゴールに到達したらループを終了
 		}
 	}
+}
+
+func (e *Agent) GetActionNum() int {
+	return e.actionNum
+}
+
+func (e *Agent) GetStateNum() int {
+	return e.stateNum
 }
