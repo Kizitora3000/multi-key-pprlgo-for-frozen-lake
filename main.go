@@ -13,13 +13,13 @@ import (
 )
 
 const (
-	EPISODES  = 100 // 200
+	EPISODES  = 200
 	MAX_USERS = 2
 )
 
 func main() {
 	// --- set up for RL ---
-	lake := frozenlake.FrozenLake3x3
+	lake := frozenlake.FrozenLake4x4
 	env := environment.NewEnvironment(lake)
 	agt := agent.NewAgent(env)
 
@@ -63,7 +63,7 @@ func main() {
 		// 学習の進捗率と迷路の成功率の表示
 		progress := float64(episode) / float64(EPISODES) * 100
 		goal_rate := float64(goal_count) / float64(EPISODES) * 100.0
-		fmt.Printf("\rTraining Progress: %.1f%% (%d/%d), Goal Rate: %.2f%%", progress, episode, EPISODES, goal_rate)
+		fmt.Printf("\rTraining Progress: %.1f%% (%d/%d), Total Goal Rate: %.2f%%, ", progress, episode, EPISODES, goal_rate)
 
 		state := env.Reset()
 		for {
@@ -79,6 +79,10 @@ func main() {
 			}
 			state = next_state
 
+		}
+
+		if episode%4 == 0 {
+			evaluateGreedyActionAtEpisodes(env, agt)
 		}
 	}
 	fmt.Println()
@@ -129,4 +133,35 @@ func ShowDecryptedQTable(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext,
 		// 復号化された値を表示
 		fmt.Printf("State %d: %f\n", i, decryptedValue)
 	}
+}
+
+func evaluateGreedyActionAtEpisodes(env *environment.Environment, agt *agent.Agent) {
+	goal_count := 0 // エピソードでのゴール到達回数をカウント
+	trials := 100   // 評価のために各エピソードを何回実行するか
+
+	for i := 0; i < trials; i++ {
+		state := env.Reset()
+		cnt := 0
+		for {
+			action := agt.GreedyAction(state) // 学習済みのQテーブルを使用して最適な行動を選択
+			next_state, _, done := env.Step(action)
+
+			if done {
+				if next_state == env.GoalPos {
+					goal_count++
+				}
+				break
+			}
+
+			if cnt > 100 {
+				break
+			}
+
+			state = next_state
+			cnt++
+		}
+	}
+
+	goalRate := float64(goal_count) / float64(trials) * 100.0
+	fmt.Printf("Greedy Action Goal Rate: %.2f%%\n", goalRate)
 }
