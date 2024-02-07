@@ -12,9 +12,10 @@ import (
 	"github.com/ldsec/lattigo/v2/ckks"
 )
 
-const EPISODES = 1000 // 1000000
-
-const MAX_USERS = 2
+const (
+	EPISODES  = 200 // 1000000
+	MAX_USERS = 2
+)
 
 func main() {
 	// --- set up for RL ---
@@ -56,8 +57,12 @@ func main() {
 		encryptedQtable[i] = ciphertext
 	}
 
-	// PPRL
+	// ---PPRL ---
+	goal_count := 0
 	for episode := 0; episode < EPISODES; episode++ {
+		progress := float64(episode) / float64(EPISODES) * 100
+		fmt.Printf("\rTraining Progress: %.1f%%", progress)
+
 		state := env.Reset()
 		for {
 			action := agt.ChooseRandomAction()
@@ -65,13 +70,22 @@ func main() {
 			agt.Learn(state, action, reward, next_state, testContext, encryptedQtable, user_list)
 
 			if done {
+				if next_state == env.GoalPos {
+					goal_count++
+				}
 				break
 			}
 			state = next_state
 
 		}
 	}
+	goal_rate := float64(goal_count) / float64(EPISODES) * 100.0
 
+	// ゴールに到達する確率の計算と表示
+	fmt.Println()
+	fmt.Printf("Goal Rate: %.2f%%\n", goal_rate)
+
+	// その他デバッグ情報の表示
 	agt.ShowQTable()
 	agt.ShowOptimalPath(env)
 	fmt.Println(calcMSE(agt, encryptedQtable, testContext))
