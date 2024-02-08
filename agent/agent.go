@@ -118,6 +118,35 @@ func (a *Agent) EpsilonGreedyAction(state position.Position) int {
 	return maxAction
 }
 
+// εグリーディー方策(クラウド上のQテーブルから選択)
+func (a *Agent) SecureEpsilonGreedyAction(state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_list []string) int {
+	// εより小さいランダムな値を生成してランダムに行動を選択
+	if rand.Float64() < a.Epsilon {
+		return a.ChooseRandomAction()
+	}
+
+	state_1D := a.convert2DTo1D(state)
+	v_t := make([]float64, a.stateNum)
+	v_t[state_1D] = 1
+
+	// 最大のQ値を持つ行動を選択
+	actions_Q_in_state := pprl.SecureActionSelection(v_t, a.stateNum, a.actionNum, testContext, encryptedQtable, user_list)
+	actions_Q_in_state_msg := testContext.Decryptor.Decrypt(actions_Q_in_state, testContext.SkSet)
+
+	maxAction := 0
+	maxQValue := real(actions_Q_in_state_msg.Value[0]) // 実部だけ抽出
+
+	for idx := 0; idx < actions_Q_in_state_msg.Slots(); idx++ {
+		qValue := real(actions_Q_in_state_msg.Value[idx]) // 実部だけ抽出
+		if qValue > maxQValue {
+			maxAction = idx
+			maxQValue = qValue
+		}
+	}
+
+	return maxAction
+}
+
 // 貪欲方策
 func (a *Agent) GreedyAction(state position.Position) int {
 	state_1D := a.convert2DTo1D(state)

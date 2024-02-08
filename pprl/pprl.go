@@ -66,3 +66,26 @@ func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, Nv int, N
 		EncryptedQtable[i] = testContext.Evaluator.SubNew(EncryptedQtable[i], re_fhe_v_and_w_Qold)
 	}
 }
+
+func SecureActionSelection(v_t []float64, Nv int, Na int, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_list []string) *mkckks.Ciphertext {
+	v_t_expanded := make([]*mkckks.Ciphertext, Nv)
+
+	for i := 0; i < Nv; i++ {
+		if v_t[i] == 0 {
+			zeros := initializeZeros(Na, testContext.Params)
+			v_t_expanded[i] = testContext.Encryptor.EncryptMsgNew(zeros, testContext.PkSet.GetPublicKey(user_list[1])) // user_list[1] = "user1"
+		} else if v_t[i] == 1 {
+			ones := initializeOnes(Na, testContext.Params)
+			v_t_expanded[i] = testContext.Encryptor.EncryptMsgNew(ones, testContext.PkSet.GetPublicKey(user_list[1])) // user_list[1] = "user1"
+		}
+	}
+
+	actions_msg := mkckks.NewMessage(testContext.Params)
+	actions := testContext.Encryptor.EncryptMsgNew(actions_msg, testContext.PkSet.GetPublicKey(user_list[1])) // user_list[1] = "user1"
+	for i := 0; i < Nv; i++ {
+		v_t_expanded[i] = testContext.Evaluator.MulRelinNew(v_t_expanded[i], EncryptedQtable[i], testContext.RlkSet)
+		actions = testContext.Evaluator.AddNew(actions, v_t_expanded[i])
+	}
+
+	return actions
+}

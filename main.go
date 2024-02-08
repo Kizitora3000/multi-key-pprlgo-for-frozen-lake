@@ -75,7 +75,9 @@ func main() {
 
 		state := env.Reset()
 		for {
-			action := agt.EpsilonGreedyAction(state)
+			// action := agt.EpsilonGreedyAction(state)
+			action := agt.SecureEpsilonGreedyAction(state, testContext, encryptedQtable, user_list)
+
 			next_state, reward, done := env.Step(action)
 			agt.Learn(state, action, reward, next_state, testContext, encryptedQtable, user_list)
 
