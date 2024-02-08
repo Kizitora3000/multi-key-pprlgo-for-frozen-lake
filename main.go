@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	EPISODES  = 200
-	MAX_USERS = 2
+	EPISODES   = 200
+	MAX_USERS  = 2             // MAX_USERS = cloud + agents
+	MAX_AGENTS = MAX_USERS - 1 // agents = MAX_USERS - cloud
 )
 
 func main() {
@@ -29,8 +30,13 @@ func main() {
 
 	// --- set up for RL ---
 	lake := frozenlake.FrozenLake6x6
-	env := environment.NewEnvironment(lake)
-	agt := agent.NewAgent(env)
+	environments := make([]*environment.Environment, MAX_AGENTS)
+	agents := make([]*agent.Agent, MAX_AGENTS)
+
+	for i := 0; i < MAX_AGENTS; i++ {
+		environments[i] = environment.NewEnvironment(lake)
+		agents[i] = agent.NewAgent(environments[i])
+	}
 
 	// --- set up for multi key ---
 	ckks_params, err := ckks.NewParametersFromLiteral(utils.FAST_BUT_NOT_128) // utils.FAST_BUT_NOT_128, utils.PPRL_PARAMS
@@ -55,11 +61,12 @@ func main() {
 	}
 
 	// クラウドのQ値を初期化
-	encryptedQtable := make([]*mkckks.Ciphertext, agt.GetStateNum())
-	for i := 0; i < agt.GetStateNum(); i++ {
+	// 各エージェントの状態数・行動数は同一のため、いずれのagentsを用いて初期化しても問題ない。今回は代表としてagents[0]を使用する
+	encryptedQtable := make([]*mkckks.Ciphertext, agents[0].GetStateNum())
+	for i := 0; i < agents[0].GetStateNum(); i++ {
 		plaintext := mkckks.NewMessage(testContext.Params)
 		for i := 0; i < (1 << testContext.Params.LogSlots()); i++ {
-			plaintext.Value[i] = complex(agt.InitValQ, 0) // 虚部は0
+			plaintext.Value[i] = complex(agents[0].InitValQ, 0) // 虚部は0
 		}
 
 		ciphertext := testContext.Encryptor.EncryptMsgNew(plaintext, testContext.PkSet.GetPublicKey(user_list[0])) // user_list[0] = "cloud"
@@ -68,37 +75,45 @@ func main() {
 
 	// ---PPRL ---
 	goal_count := 0.0
+	all_agt_eps := 0 // 各エージェントの試行回数の総計
 	for episode := 0; episode < EPISODES; episode++ {
 		// 学習の進捗率を表示
 		progress := float64(episode) / float64(EPISODES) * 100
 		fmt.Printf("\rTraining Progress: %.1f%% (%d/%d)", progress, episode, EPISODES)
 
-		state := env.Reset()
-		for {
-			// action := agt.EpsilonGreedyAction(state)
-			action := agt.SecureEpsilonGreedyAction(state, testContext, encryptedQtable, user_list)
+		for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
+			env := environments[agent_idx]
+			agt := agents[agent_idx]
 
-			next_state, reward, done := env.Step(action)
-			agt.Learn(state, action, reward, next_state, testContext, encryptedQtable, user_list)
+			state := env.Reset()
+			for {
+				// action := agt.EpsilonGreedyAction(state)
+				action := agt.SecureEpsilonGreedyAction(state, testContext, encryptedQtable, user_list)
 
-			if done {
-				if next_state == env.GoalPos {
-					goal_count++
+				next_state, reward, done := env.Step(action)
+				agt.Learn(state, action, reward, next_state, testContext, encryptedQtable, user_list)
+
+				if done {
+					if next_state == env.GoalPos {
+						goal_count++
+					}
+					all_agt_eps++
+
+					break
 				}
-
-				// 成功率を算出してcsvに出力
-				goal_rate := goal_count / EPISODES
-				writer.Write([]string{fmt.Sprintf("%d", int(episode)), fmt.Sprintf("%.2f", goal_rate)})
-
-				break
+				state = next_state
 			}
-			state = next_state
+
+			// 成功率を算出してcsvに出力
+			goal_rate := goal_count / float64(all_agt_eps)
+			writer.Write([]string{fmt.Sprintf("%d", int(episode)), fmt.Sprintf("%.2f", goal_rate)})
+
 		}
 	}
 	fmt.Println()
 
 	// その他デバッグ情報の表示
-	agt.ShowQTable()
+	agents[0].ShowQTable()
 	// agt.ShowOptimalPath(env)
 	// fmt.Println(calcMSE(agt, encryptedQtable, testContext))
 	// ShowDecryptedQTable(agt, encryptedQtable, testContext)
