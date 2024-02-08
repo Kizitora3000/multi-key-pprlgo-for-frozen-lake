@@ -21,11 +21,11 @@ const (
 
 func main() {
 	// --- set up for Result
-	file, err := os.Create("goal_rates.csv")
+	file, err := os.Create("success_rate.csv")
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-	writer.Write([]string{"Episode", "Goal Rate"}) // 表頭を記入
+	writer.Write([]string{"Episode", "Success Rate"}) // 表頭を記入
 
 	// --- set up for RL ---
 	lake := frozenlake.FrozenLake6x6
