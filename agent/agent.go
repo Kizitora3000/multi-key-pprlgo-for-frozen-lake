@@ -67,7 +67,7 @@ func (e *Agent) Learn(state position.Position, act int, rwd int, next_state posi
 	e.Qtable[state_1D][act] = (1-e.Alpha)*e.Qtable[state_1D][act] + e.Alpha*target
 
 	Qnew := e.Qtable[state_1D][act]
-	v_t := make([]float64, e.stateNum) // マジックナンバー とりあえずUCIのデータセットの血糖値は最大で501
+	v_t := make([]float64, e.stateNum)
 	w_t := make([]float64, e.actionNum)
 	v_t[state_1D] = 1
 	w_t[act] = 1
