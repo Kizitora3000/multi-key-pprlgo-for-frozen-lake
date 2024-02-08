@@ -7,20 +7,28 @@ import (
 	"MKpprlgoFrozenLake/mkckks"
 	"MKpprlgoFrozenLake/mkrlwe"
 	"MKpprlgoFrozenLake/utils"
+	"encoding/csv"
 	"fmt"
+	"os"
 
 	"github.com/ldsec/lattigo/v2/ckks"
 )
 
 const (
-	// エピソード数の目安：3x3 → 32, 4x4 → 128, 5x5 → 32768, 6x6 → ? (TODO)
-	EPISODES  = 32
+	EPISODES  = 200
 	MAX_USERS = 2
 )
 
 func main() {
+	// --- set up for Result
+	file, err := os.Create("goal_rates.csv")
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	writer.Write([]string{"Episode", "Goal Rate"}) // 表頭を記入
+
 	// --- set up for RL ---
-	lake := frozenlake.FrozenLake3x3
+	lake := frozenlake.FrozenLake6x6
 	env := environment.NewEnvironment(lake)
 	agt := agent.NewAgent(env)
 
@@ -59,12 +67,11 @@ func main() {
 	}
 
 	// ---PPRL ---
-	goal_count := 0
+	goal_count := 0.0
 	for episode := 0; episode < EPISODES; episode++ {
-		// 学習の進捗率と迷路の成功率の表示
+		// 学習の進捗率を表示
 		progress := float64(episode) / float64(EPISODES) * 100
-		goal_rate := float64(goal_count) / float64(EPISODES) * 100.0
-		fmt.Printf("\rTraining Progress: %.1f%% (%d/%d), Total Goal Rate: %.2f%%, ", progress, episode, EPISODES, goal_rate)
+		fmt.Printf("\rTraining Progress: %.1f%% (%d/%d)", progress, episode, EPISODES)
 
 		state := env.Reset()
 		for {
@@ -76,14 +83,14 @@ func main() {
 				if next_state == env.GoalPos {
 					goal_count++
 				}
+
+				// 成功率を算出してcsvに出力
+				goal_rate := goal_count / EPISODES
+				writer.Write([]string{fmt.Sprintf("%d", int(episode)), fmt.Sprintf("%.2f", goal_rate)})
+
 				break
 			}
 			state = next_state
-
-		}
-
-		if episode%4 == 0 {
-			evaluateGreedyActionAtEpisodes(env, agt)
 		}
 	}
 	fmt.Println()
