@@ -46,7 +46,6 @@ func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, Nv int, N
 	}
 	fhe_Q_news := testContext.Encryptor.EncryptMsgNew(Q_news_msg, testContext.PkSet.GetPublicKey(user_list[1])) // user_list[1] = "user1"
 
-	// Not 並列化
 	for i := 0; i < Nv; i++ {
 		fhe_v_t := temp[i]
 		// make Qnew
@@ -65,35 +64,5 @@ func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, Nv int, N
 
 		EncryptedQtable[i] = testContext.Evaluator.AddNew(EncryptedQtable[i], re_fhe_v_and_w_Qnew)
 		EncryptedQtable[i] = testContext.Evaluator.SubNew(EncryptedQtable[i], re_fhe_v_and_w_Qold)
-
-		// 並列化
-		/*
-			var wg sync.WaitGroup
-			for i := 0; i < Nv; i++ {
-				wg.Add(1)
-				go func(i int) {
-					defer wg.Done()
-					fhe_v_t := temp[i]
-
-					// make Qnew
-					fhe_v_and_w_Qnew := testContext.Evaluator.MulRelinNew(fhe_v_t, fhe_w_t, testContext.RlkSet)
-					fhe_v_and_w_Qnew = testContext.Evaluator.MulRelinNew(fhe_v_and_w_Qnew, fhe_Q_news, testContext.RlkSet)
-
-					// make Qold
-					fhe_v_and_w_Qold := testContext.Evaluator.MulRelinNew(fhe_v_t, fhe_w_t, testContext.RlkSet)
-					fhe_v_and_w_Qold = testContext.Evaluator.MulRelinNew(fhe_v_and_w_Qold, EncryptedQtable[i], testContext.RlkSet)
-
-					// ノイズ増加を防ぐため復号して除去する
-					decrypt_fhe_v_and_w_Qnew := testContext.Decryptor.Decrypt(fhe_v_and_w_Qnew, testContext.SkSet)
-					re_fhe_v_and_w_Qnew := testContext.Encryptor.EncryptMsgNew(decrypt_fhe_v_and_w_Qnew, testContext.PkSet.GetPublicKey(user_list[1]))
-					decrypt_fhe_v_and_w_Qold := testContext.Decryptor.Decrypt(fhe_v_and_w_Qold, testContext.SkSet)
-					re_fhe_v_and_w_Qold := testContext.Encryptor.EncryptMsgNew(decrypt_fhe_v_and_w_Qold, testContext.PkSet.GetPublicKey(user_list[1]))
-
-					EncryptedQtable[i] = testContext.Evaluator.AddNew(EncryptedQtable[i], re_fhe_v_and_w_Qnew)
-					EncryptedQtable[i] = testContext.Evaluator.SubNew(EncryptedQtable[i], re_fhe_v_and_w_Qold)
-				}(i)
-			}
-			wg.Wait()
-		*/
 	}
 }
