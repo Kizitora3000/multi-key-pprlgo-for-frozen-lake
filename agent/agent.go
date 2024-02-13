@@ -179,7 +179,7 @@ func (a *Agent) ShowQTable() {
 		// 状態を二次元座標に変換して表示
 		stateY := stateIndex / a.lakeWidth
 		stateX := stateIndex % a.lakeWidth
-		fmt.Printf("State (%d, %d): ", stateY, stateX)
+		fmt.Printf("State [Y: %d, X: %d]: ", stateY, stateX)
 
 		for actionIndex, qValue := range actions {
 			// actionIndex を方向の文字列に変換して表示
