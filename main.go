@@ -28,6 +28,14 @@ func main() {
 	defer writer.Flush()
 	writer.Write([]string{"Episode", "Success Rate"}) // 表頭を記入
 
+	evalFileName := "eval_success_rate.csv"
+	// ファイルが存在する場合は削除 (eval_success_rateはeval関数が呼ばれるたびに追記していく形式なので、プログラム開始時は削除する)
+	if _, err := os.Stat(evalFileName); err == nil {
+		if err := os.Remove(evalFileName); err != nil {
+			panic(err)
+		}
+	}
+
 	// --- set up for RL ---
 	lake := frozenlake.FrozenLake6x6
 	environments := make([]*environment.Environment, MAX_AGENTS)
@@ -76,7 +84,7 @@ func main() {
 	// ---PPRL ---
 	goal_count := 0.0
 	all_agt_eps := 0 // 各エージェントの試行回数の総計
-	for episode := 0; episode < EPISODES; episode++ {
+	for episode := 0; episode <= EPISODES; episode++ {
 		// 学習の進捗率を表示
 		progress := float64(episode) / float64(EPISODES) * 100
 		fmt.Printf("\rTraining Progress: %.1f%% (%d/%d)", progress, episode, EPISODES)
@@ -108,15 +116,17 @@ func main() {
 			goal_rate := goal_count / float64(all_agt_eps)
 			writer.Write([]string{fmt.Sprintf("%d", int(episode)), fmt.Sprintf("%.2f", goal_rate)})
 
+			if episode%4 == 0 {
+				evaluateGreedyActionAtEpisodes(episode, env, agt)
+			}
 		}
 	}
 	fmt.Println()
 
 	// その他デバッグ情報の表示
 	agents[0].ShowQTable()
-	// agt.ShowOptimalPath(env)
+	// agents[0].ShowOptimalPath(environments[0])
 	// fmt.Println(calcMSE(agt, encryptedQtable, testContext))
-	// ShowDecryptedQTable(agt, encryptedQtable, testContext)
 }
 
 func calcMSE(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext, testContext *utils.TestParams) float64 {
@@ -160,7 +170,26 @@ func ShowDecryptedQTable(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext,
 	}
 }
 
-func evaluateGreedyActionAtEpisodes(env *environment.Environment, agt *agent.Agent) {
+func evaluateGreedyActionAtEpisodes(now_episode int, env *environment.Environment, agt *agent.Agent) {
+	// ファイルを追記モードで開く（ファイルが存在しない場合は新しく作成）
+	file, err := os.OpenFile("eval_success_rate.csv", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// ファイルが空（新規作成されたばかり）の場合、ヘッダーを書き込む
+	fileInfo, err := file.Stat()
+	if err != nil {
+		panic(err)
+	}
+	if fileInfo.Size() == 0 {
+		writer.Write([]string{"Episode", "Success Rate"}) // 表頭を記入
+	}
+
 	goal_count := 0 // エピソードでのゴール到達回数をカウント
 	trials := 100   // 評価のために各エピソードを何回実行するか
 
@@ -189,4 +218,6 @@ func evaluateGreedyActionAtEpisodes(env *environment.Environment, agt *agent.Age
 
 	goalRate := float64(goal_count) / float64(trials) * 100.0
 	fmt.Printf("Greedy Action Goal Rate: %.2f%%\n", goalRate)
+
+	writer.Write([]string{fmt.Sprintf("%d", int(now_episode)), fmt.Sprintf("%.2f", goalRate)})
 }
