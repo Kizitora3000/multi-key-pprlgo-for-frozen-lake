@@ -21,21 +21,6 @@ const (
 )
 
 func main() {
-	// --- set up for Result
-	file, err := os.Create("success_rate.csv")
-	defer file.Close()
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-	writer.Write([]string{"Episode", "Success Rate"}) // 表頭を記入
-
-	evalFileName := "eval_success_rate.csv"
-	// ファイルが存在する場合は削除 (eval_success_rateはeval関数が呼ばれるたびに追記していく形式なので、プログラム開始時は削除する)
-	if _, err := os.Stat(evalFileName); err == nil {
-		if err := os.Remove(evalFileName); err != nil {
-			panic(err)
-		}
-	}
-
 	// --- set up for RL ---
 	lake := frozenlake.FrozenLake6x6
 	environments := make([]*environment.Environment, MAX_AGENTS)
@@ -46,8 +31,24 @@ func main() {
 		agents[i] = agent.NewAgent(environments[i])
 	}
 
+	// --- set up for Result
+	success_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d.csv", lake.Height, lake.Width)
+	file, err := os.Create(success_rate_filename)
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	writer.Write([]string{"Episode", "Success Rate"}) // 表頭を記入
+
+	eval_rate_filename := fmt.Sprintf("MKPPRL_eval_greedy_success_rate_%dx%d.csv", lake.Height, lake.Width)
+	// ファイルが存在する場合は削除 (eval_success_rateはeval関数が呼ばれるたびに追記していく形式なので、プログラム開始時は削除する)
+	if _, err := os.Stat(eval_rate_filename); err == nil {
+		if err := os.Remove(eval_rate_filename); err != nil {
+			panic(err)
+		}
+	}
+
 	// --- set up for multi key ---
-	ckks_params, err := ckks.NewParametersFromLiteral(utils.FAST_BUT_NOT_128) // utils.FAST_BUT_NOT_128, utils.PPRL_PARAMS
+	ckks_params, err := ckks.NewParametersFromLiteral(utils.PN15QP880) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
 	if err != nil {
 		panic(err)
 	}
@@ -172,7 +173,8 @@ func ShowDecryptedQTable(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext,
 
 func evaluateGreedyActionAtEpisodes(now_episode int, env *environment.Environment, agt *agent.Agent) {
 	// ファイルを追記モードで開く（ファイルが存在しない場合は新しく作成）
-	file, err := os.OpenFile("eval_success_rate.csv", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	eval_rate_filename := fmt.Sprintf("MKPPRL_eval_greedy_success_rate_%dx%d.csv", env.Height(), env.Width())
+	file, err := os.OpenFile(eval_rate_filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
