@@ -15,7 +15,7 @@ import (
 var (
 	PN15QP880 = ckks.ParametersLiteral{
 		LogN:     15,
-		LogSlots: 0, // default: 14
+		LogSlots: 2, // default: 14
 		//60 + 13x54
 		Q: []uint64{
 			0xfffffffff6a0001,
@@ -59,7 +59,7 @@ var (
 		LogQ:     []int{35, 60, 60},
 		LogP:     []int{45, 45},
 		LogSlots: 2,
-		Scale:    1 << 30,
+		Scale:    1 << 10, // 30
 	}
 
 	PPRL_PARAMS = ckks.ParametersLiteral{

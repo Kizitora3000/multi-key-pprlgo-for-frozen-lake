@@ -6,10 +6,10 @@ import (
 )
 
 const (
-	SURFACE_REWARD  = 0 // 地面に移動した場合は報酬0
-	GOAL_REWARD     = 1000
-	HOLE_PENALTY    = -1 // 穴に移動した場合のペナルティ
-	OUTSIDE_PENALTY = -1 // 画面外に移動した場合のペナルティ
+	SURFACE_REWARD  = 0   // 地面に移動した場合は報酬0
+	GOAL_REWARD     = 10  //1e5  // ゴールした場合は正の報酬を与える
+	HOLE_PENALTY    = -10 //-1e4 // 穴に移動した場合のペナルティ
+	OUTSIDE_PENALTY = -10 //-1e4 // 画面外に移動した場合のペナルティ
 )
 
 type Environment struct {

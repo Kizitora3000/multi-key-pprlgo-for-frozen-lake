@@ -7,6 +7,7 @@ import (
 	"MKpprlgoFrozenLake/pprl"
 	"MKpprlgoFrozenLake/utils"
 	"fmt"
+	"math"
 	"math/rand"
 )
 
@@ -66,12 +67,12 @@ func (e *Agent) Learn(state position.Position, act int, rwd int, next_state posi
 
 	e.Qtable[state_1D][act] = (1-e.Alpha)*e.Qtable[state_1D][act] + e.Alpha*target
 
-	Qnew := e.Qtable[state_1D][act]
-	v_t := make([]float64, e.stateNum) // マジックナンバー とりあえずUCIのデータセットの血糖値は最大で501
+	v_t := make([]float64, e.stateNum)
 	w_t := make([]float64, e.actionNum)
 	v_t[state_1D] = 1
 	w_t[act] = 1
 
+	Qnew := e.Qtable[state_1D][act]
 	pprl.SecureQtableUpdating(v_t, w_t, Qnew, e.stateNum, e.actionNum, testContext, encryptedQtable, user_list)
 }
 
@@ -92,7 +93,6 @@ func (e *Agent) convert2DTo1D(state position.Position) int {
 
 // ランダムに行動を選択
 func (a *Agent) ChooseRandomAction() int {
-	rand.New(rand.NewSource(0))
 	return rand.Intn(a.actionNum) // 0からactionNum-1までの範囲でランダムに整数を返す
 }
 
@@ -111,6 +111,64 @@ func (a *Agent) EpsilonGreedyAction(state position.Position) int {
 	for action, qValue := range a.Qtable[state_1D] {
 		if qValue > maxQValue {
 			maxAction = action
+			maxQValue = qValue
+		}
+	}
+
+	return maxAction
+}
+
+// 実数を指定された桁数で切り捨てる
+func TruncateFloat(value float64, places int) float64 {
+	if math.Abs(value) < float64(math.Pow(10, float64(-places))) {
+		return 0.0
+	}
+
+	shift := math.Pow(10, float64(places))
+	return math.Floor(value*shift) / shift
+}
+
+// 複素数の実部と虚部を指定された桁数で切り捨てる
+func TruncateComplex(c complex128) complex128 {
+	const places = 5 // 小数点第4位
+	realPart := real(c)
+	imagPart := imag(c)
+
+	truncatedReal := TruncateFloat(realPart, places)
+	truncatedImag := TruncateFloat(imagPart, places)
+
+	return complex(truncatedReal, truncatedImag)
+}
+
+// εグリーディー方策(クラウド上のQテーブルから選択)
+func (a *Agent) SecureEpsilonGreedyAction(state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_list []string) int {
+	// εより小さいランダムな値を生成してランダムに行動を選択
+	if rand.Float64() < a.Epsilon {
+		return a.ChooseRandomAction()
+	}
+
+	state_1D := a.convert2DTo1D(state)
+	v_t := make([]float64, a.stateNum)
+	v_t[state_1D] = 1
+
+	// 最大のQ値を持つ行動を選択
+	actions_Q_in_state := pprl.SecureActionSelection(v_t, a.stateNum, a.actionNum, testContext, encryptedQtable, user_list)
+	actions_Q_in_state_msg := testContext.Decryptor.Decrypt(actions_Q_in_state, testContext.SkSet)
+
+	// fmt.Println(actions_Q_in_state_msg.Value)
+	// 復号時に生じる極小な誤差は切り捨てる
+	for i := 0; i < a.actionNum; i++ {
+		actions_Q_in_state_msg.Value[i] = TruncateComplex(actions_Q_in_state_msg.Value[i])
+	}
+	// fmt.Println(actions_Q_in_state_msg.Value)
+
+	maxAction := 0
+	maxQValue := real(actions_Q_in_state_msg.Value[0]) // 実部だけ抽出
+
+	for idx := 0; idx < a.actionNum; idx++ {
+		qValue := real(actions_Q_in_state_msg.Value[idx]) // 実部だけ抽出
+		if qValue > maxQValue {
+			maxAction = idx
 			maxQValue = qValue
 		}
 	}
@@ -150,7 +208,7 @@ func (a *Agent) ShowQTable() {
 		// 状態を二次元座標に変換して表示
 		stateY := stateIndex / a.lakeWidth
 		stateX := stateIndex % a.lakeWidth
-		fmt.Printf("State (%d, %d): ", stateY, stateX)
+		fmt.Printf("State [Y: %d, X: %d]: ", stateY, stateX)
 
 		for actionIndex, qValue := range actions {
 			// actionIndex を方向の文字列に変換して表示
