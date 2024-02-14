@@ -59,7 +59,7 @@ var (
 		LogQ:     []int{35, 60, 60},
 		LogP:     []int{45, 45},
 		LogSlots: 2,
-		Scale:    1 << 30,
+		Scale:    1 << 10, // 30
 	}
 
 	PPRL_PARAMS = ckks.ParametersLiteral{
