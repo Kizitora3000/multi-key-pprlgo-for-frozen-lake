@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	EPISODES   = 1000
+	EPISODES   = 200
 	MAX_USERS  = 2             // MAX_USERS = cloud + agents
 	MAX_AGENTS = MAX_USERS - 1 // agents = MAX_USERS - cloud
 )
@@ -81,7 +81,7 @@ func main() {
 	}
 
 	// --- set up for multi key ---
-	ckks_params, err := ckks.NewParametersFromLiteral(utils.FAST_BUT_NOT_128) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
+	ckks_params, err := ckks.NewParametersFromLiteral(utils.PN15QP880) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
 	if err != nil {
 		panic(err)
 	}
