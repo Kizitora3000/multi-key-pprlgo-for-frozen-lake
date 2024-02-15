@@ -13,6 +13,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"time"
 
 	"github.com/ldsec/lattigo/v2/ckks"
 )
@@ -21,7 +22,7 @@ const (
 	EPISODES   = 200
 	MAX_USERS  = 2             // MAX_USERS = cloud + agents
 	MAX_AGENTS = MAX_USERS - 1 // agents = MAX_USERS - cloud
-	MAX_TRIALS = 5
+	MAX_TRIALS = 100
 )
 
 func main() {
@@ -105,6 +106,8 @@ func main() {
 
 	// ---PPRL ---
 	var success_rate_per_episode = make([][]float64, MAX_TRIALS)
+	var totalDuration time.Duration
+
 	for trial := 0; trial < MAX_TRIALS; trial++ {
 		goal_count := 0.0
 		all_agt_eps := 0 // 各エージェントの試行回数の総計
@@ -127,9 +130,15 @@ func main() {
 		}
 
 		for episode := 0; episode <= EPISODES; episode++ {
+			startTime := time.Now() // 処理開始時刻
+
+			average_time := totalDuration / (time.Duration(episode) + time.Duration(trial)*EPISODES + 1) // ゼロ除算を避けるため +1 する
+			remained_train_cnt := EPISODES*MAX_TRIALS - (episode + (trial * EPISODES))
+			prediction_time := average_time * time.Duration(remained_train_cnt)
+
 			// 学習の進捗率を表示
 			progress := float64(episode) / float64(EPISODES) * 100
-			fmt.Printf("\rTraining Progress (Trial - %d/%d): %.1f%% (%d/%d)", trial, MAX_TRIALS, progress, episode, EPISODES)
+			fmt.Printf("\rTraining Progress (Trial - %d/%d): %.1f%% (%d/%d), 終了予定時間: %s", trial, MAX_TRIALS, progress, episode, EPISODES, prediction_time)
 
 			for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
 				env := environments[agent_idx]
@@ -164,7 +173,12 @@ func main() {
 					}
 				*/
 				success_rate_per_episode[trial] = append(success_rate_per_episode[trial], goal_rate)
+
 			}
+			endTime := time.Now()              // 処理終了時刻
+			duration := endTime.Sub(startTime) // 経過時間を計算
+			totalDuration += duration          // durationを加算
+
 		}
 	}
 
