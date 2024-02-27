@@ -56,11 +56,35 @@ var (
 
 	FAST_BUT_NOT_128 = ckks.ParametersLiteral{
 		LogN:     7,
-		LogQ:     []int{35, 60, 60},
-		LogP:     []int{45, 45},
-		LogSlots: 2,
-		Scale:    1 << 10, // 30
+		LogSlots: 2, // default: 14
+		//60 + 13x54
+		Q: []uint64{
+			0xfffffffff6a0001,
+
+			0x3fffffffd60001, 0x3fffffffca0001,
+			0x3fffffff6d0001, 0x3fffffff5d0001,
+			0x3fffffff550001, 0x3fffffff390001,
+			0x3fffffff360001, 0x3fffffff2a0001,
+			0x3fffffff000001, 0x3ffffffefa0001,
+			0x3ffffffef40001, 0x3ffffffed70001,
+			0x3ffffffed30001,
+		},
+		P: []uint64{
+			//59 x 2
+			0x7ffffffffe70001, 0x7ffffffffe10001,
+		},
+		Scale: 1 << 54,
+		Sigma: rlwe.DefaultSigma,
 	}
+	/*
+		FAST_BUT_NOT_128 = ckks.ParametersLiteral{
+			LogN:     7,
+			LogQ:     []int{35, 60, 60},
+			LogP:     []int{45, 45},
+			LogSlots: 2,
+			Scale:    1 << 50, // 30
+		}
+	*/
 
 	PPRL_PARAMS = ckks.ParametersLiteral{
 		LogN:     13,                // 13
