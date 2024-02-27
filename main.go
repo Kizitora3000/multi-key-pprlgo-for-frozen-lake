@@ -138,7 +138,7 @@ func main() {
 
 			// 学習の進捗率を表示
 			progress := float64(episode) / float64(EPISODES) * 100
-			fmt.Printf("\rTraining Progress (Trial - %d/%d): %.1f%% (%d/%d), 終了予定時間: %s", trial, MAX_TRIALS, progress, episode, EPISODES, prediction_time)
+			fmt.Printf("\rTraining Progress (Trial - %d/%d): %.1f%% (%d/%d), 終了予定時間: %s     ", trial, MAX_TRIALS, progress, episode, EPISODES, prediction_time)
 
 			for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
 				env := environments[agent_idx]
