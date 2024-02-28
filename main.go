@@ -6,6 +6,7 @@ import (
 	"MKpprlgoFrozenLake/frozenlake"
 	"MKpprlgoFrozenLake/mkckks"
 	"MKpprlgoFrozenLake/mkrlwe"
+	"MKpprlgoFrozenLake/pprl"
 	"MKpprlgoFrozenLake/utils"
 	"encoding/csv"
 	"flag"
@@ -13,14 +14,14 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"time"
+	"sync"
 
 	"github.com/ldsec/lattigo/v2/ckks"
 )
 
 const (
 	EPISODES   = 200
-	MAX_USERS  = 2             // MAX_USERS = cloud + agents
+	MAX_USERS  = 3             // MAX_USERS = cloud + agents
 	MAX_AGENTS = MAX_USERS - 1 // agents = MAX_USERS - cloud
 	MAX_TRIALS = 100
 )
@@ -44,8 +45,6 @@ func main() {
 
 	var lake frozenlake.FrozenLake
 	switch *map_size {
-	case "3x3":
-		lake = frozenlake.FrozenLake3x3
 	case "4x4":
 		lake = frozenlake.FrozenLake4x4
 	case "5x5":
@@ -106,79 +105,70 @@ func main() {
 
 	// ---PPRL ---
 	var success_rate_per_episode = make([][]float64, MAX_TRIALS)
-	var totalDuration time.Duration
 
-	for trial := 0; trial < MAX_TRIALS; trial++ {
-		goal_count := 0.0
-		all_agt_eps := 0 // 各エージェントの試行回数の総計
+	// 試行ごとにクラウドのQ値を初期化
+	// 各エージェントの状態数・行動数は同一のため、いずれのagentsを用いて初期化しても問題ない。今回は代表としてagents[0]を使用する
+	encryptedQtable := make([]*mkckks.Ciphertext, agents[0].GetStateNum())
+	for i := 0; i < agents[0].GetStateNum(); i++ {
+		plaintext := mkckks.NewMessage(testContext.Params)
+		for i := 0; i < (1 << testContext.Params.LogSlots()); i++ {
+			plaintext.Value[i] = complex(agents[0].InitValQ, 0) // 虚部は0
+		}
 
+		ciphertext := testContext.Encryptor.EncryptMsgNew(plaintext, testContext.PkSet.GetPublicKey(user_list[0])) // user_list[0] = "cloud"
+		encryptedQtable[i] = ciphertext
+	}
+
+	for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
+		agents[agent_idx].QtableReset(environments[agent_idx])
+		agents[agent_idx].Env.Reset()
+	}
+
+	type UpdateData struct {
+		V_t []float64
+		W_t []float64
+		Q   float64
+	}
+
+	// UpdateData型のチャネルを作成
+	updateChannel := make(chan UpdateData, MAX_AGENTS)
+
+	for episode := 1; episode <= EPISODES; episode++ {
+		fmt.Println(episode)
+		var wg sync.WaitGroup
 		for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
-			agents[agent_idx].QtableReset(environments[agent_idx])
-		}
 
-		// 試行ごとにクラウドのQ値を初期化
-		// 各エージェントの状態数・行動数は同一のため、いずれのagentsを用いて初期化しても問題ない。今回は代表としてagents[0]を使用する
-		encryptedQtable := make([]*mkckks.Ciphertext, agents[0].GetStateNum())
-		for i := 0; i < agents[0].GetStateNum(); i++ {
-			plaintext := mkckks.NewMessage(testContext.Params)
-			for i := 0; i < (1 << testContext.Params.LogSlots()); i++ {
-				plaintext.Value[i] = complex(agents[0].InitValQ, 0) // 虚部は0
-			}
+			wg.Add(1)
+			go func(agent_idx int, encryptedQtable []*mkckks.Ciphertext) {
+				defer wg.Done()
 
-			ciphertext := testContext.Encryptor.EncryptMsgNew(plaintext, testContext.PkSet.GetPublicKey(user_list[0])) // user_list[0] = "cloud"
-			encryptedQtable[i] = ciphertext
-		}
+				copiedEncryptedQtable := make([]*mkckks.Ciphertext, agents[0].GetStateNum())
+				copy(copiedEncryptedQtable, encryptedQtable)
 
-		for episode := 0; episode <= EPISODES; episode++ {
-			startTime := time.Now() // 処理開始時刻
-
-			average_time := totalDuration / (time.Duration(episode) + time.Duration(trial)*EPISODES + 1) // ゼロ除算を避けるため +1 する
-			remained_train_cnt := EPISODES*MAX_TRIALS - (episode + (trial * EPISODES))
-			prediction_time := average_time * time.Duration(remained_train_cnt)
-
-			// 学習の進捗率を表示
-			progress := float64(episode) / float64(EPISODES) * 100
-			fmt.Printf("\rTraining Progress (Trial - %d/%d): %.1f%% (%d/%d), 終了予定時間: %s     ", trial, MAX_TRIALS, progress, episode, EPISODES, prediction_time)
-
-			for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
 				env := environments[agent_idx]
 				agt := agents[agent_idx]
 
-				state := env.Reset()
-				for {
-					// action := agt.EpsilonGreedyAction(state)
-					action := agt.SecureEpsilonGreedyAction(state, testContext, encryptedQtable, user_list)
+				state := agt.Env.AgentState
+				action := agt.SecureEpsilonGreedyAction(state, testContext, copiedEncryptedQtable, user_list[agent_idx+1])
+				next_state, reward, done := env.Step(action)
+				v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, testContext, copiedEncryptedQtable)
 
-					next_state, reward, done := env.Step(action)
-					agt.Learn(state, action, reward, next_state, testContext, encryptedQtable, user_list)
+				updateChannel <- UpdateData{V_t: v_t, W_t: w_t, Q: Q}
 
-					if done {
-						if next_state == env.GoalPos {
-							goal_count++
-						}
-						all_agt_eps++
-
-						break
-					}
-					state = next_state
+				if done {
+					agt.Env.Reset()
 				}
+				state = next_state
+			}(agent_idx, encryptedQtable)
+		}
+		wg.Wait()
 
-				// 成功率を算出してcsvに出力
-				goal_rate := goal_count / float64(all_agt_eps)
-				writer.Write([]string{fmt.Sprintf("%d", int(episode)), fmt.Sprintf("%.2f", goal_rate)})
+		for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
+			e := environments[agent_idx]
+			a := agents[agent_idx]
 
-				/*
-					if episode%4 == 0 {
-						evaluateGreedyActionAtEpisodes(episode, env, agt)
-					}
-				*/
-				success_rate_per_episode[trial] = append(success_rate_per_episode[trial], goal_rate)
-
-			}
-			endTime := time.Now()              // 処理終了時刻
-			duration := endTime.Sub(startTime) // 経過時間を計算
-			totalDuration += duration          // durationを加算
-
+			updateData := <-updateChannel
+			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Q, a.Env.Height()*a.Env.Width(), len(e.ActionSpace), testContext, encryptedQtable, user_list[agent_idx+1])
 		}
 	}
 

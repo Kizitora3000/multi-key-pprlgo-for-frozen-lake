@@ -12,6 +12,7 @@ import (
 )
 
 type Agent struct {
+	Env        *environment.Environment
 	actionNum  int
 	stateNum   int
 	lakeHeight int
@@ -46,6 +47,7 @@ func NewAgent(env *environment.Environment) *Agent {
 	}
 
 	return &Agent{
+		Env:        env,
 		actionNum:  actionNum,
 		stateNum:   stateNum,
 		lakeHeight: lakeHeight,
@@ -68,7 +70,7 @@ func (a *Agent) QtableReset(env *environment.Environment) {
 	}
 }
 
-func (e *Agent) Learn(state position.Position, act int, rwd int, next_state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_list []string) {
+func (e *Agent) Learn(state position.Position, act int, rwd int, next_state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_name string) {
 	state_1D := e.convert2DTo1D(state)
 	next_state_1D := e.convert2DTo1D(next_state)
 
@@ -83,7 +85,26 @@ func (e *Agent) Learn(state position.Position, act int, rwd int, next_state posi
 	w_t[act] = 1
 
 	Qnew := e.Qtable[state_1D][act]
-	pprl.SecureQtableUpdating(v_t, w_t, Qnew, e.stateNum, e.actionNum, testContext, encryptedQtable, user_list)
+	pprl.SecureQtableUpdating(v_t, w_t, Qnew, e.stateNum, e.actionNum, testContext, encryptedQtable, user_name)
+}
+
+func (e *Agent) Trajectory(state position.Position, act int, rwd int, next_state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext) ([]float64, []float64, float64) {
+	state_1D := e.convert2DTo1D(state)
+	next_state_1D := e.convert2DTo1D(next_state)
+
+	target := float64(0)
+	target = float64(rwd) + e.Gamma*e.maxValue(e.Qtable[next_state_1D]) // rwdは整数値なので実数値にキャストする
+
+	e.Qtable[state_1D][act] = (1-e.Alpha)*e.Qtable[state_1D][act] + e.Alpha*target
+
+	v_t := make([]float64, e.stateNum)
+	w_t := make([]float64, e.actionNum)
+	v_t[state_1D] = 1
+	w_t[act] = 1
+
+	Qnew := e.Qtable[state_1D][act]
+
+	return v_t, w_t, Qnew
 }
 
 func (e *Agent) maxValue(slice []float64) float64 {
@@ -151,7 +172,7 @@ func TruncateComplex(c complex128) complex128 {
 }
 
 // εグリーディー方策(クラウド上のQテーブルから選択)
-func (a *Agent) SecureEpsilonGreedyAction(state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_list []string) int {
+func (a *Agent) SecureEpsilonGreedyAction(state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext, user_name string) int {
 	// εより小さいランダムな値を生成してランダムに行動を選択
 	if rand.Float64() < a.Epsilon {
 		return a.ChooseRandomAction()
@@ -162,7 +183,7 @@ func (a *Agent) SecureEpsilonGreedyAction(state position.Position, testContext *
 	v_t[state_1D] = 1
 
 	// 最大のQ値を持つ行動を選択
-	actions_Q_in_state := pprl.SecureActionSelection(v_t, a.stateNum, a.actionNum, testContext, encryptedQtable, user_list)
+	actions_Q_in_state := pprl.SecureActionSelection(v_t, a.stateNum, a.actionNum, testContext, encryptedQtable, user_name)
 	actions_Q_in_state_msg := testContext.Decryptor.Decrypt(actions_Q_in_state, testContext.SkSet)
 
 	// fmt.Println(actions_Q_in_state_msg.Value)
