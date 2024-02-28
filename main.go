@@ -142,6 +142,12 @@ func main() {
 			go func(agent_idx int, encryptedQtable []*mkckks.Ciphertext) {
 				defer wg.Done()
 
+				// 各ゴルーチンで独自のtestContextを生成する
+				localTestContext, err := utils.GenTestParams(params, idset)
+				if err != nil {
+					panic(err)
+				}
+
 				copiedEncryptedQtable := make([]*mkckks.Ciphertext, agents[0].GetStateNum())
 				copy(copiedEncryptedQtable, encryptedQtable)
 
@@ -149,9 +155,10 @@ func main() {
 				agt := agents[agent_idx]
 
 				state := agt.Env.AgentState
-				action := agt.SecureEpsilonGreedyAction(state, testContext, copiedEncryptedQtable, user_list[agent_idx+1])
+				// action := agt.EpsilonGreedyAction(state)
+				action := agt.SecureEpsilonGreedyAction(state, localTestContext, copiedEncryptedQtable, user_list[agent_idx+1])
 				next_state, reward, done := env.Step(action)
-				v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, testContext, copiedEncryptedQtable)
+				v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, copiedEncryptedQtable)
 
 				updateChannel <- UpdateData{V_t: v_t, W_t: w_t, Q: Q}
 

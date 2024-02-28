@@ -88,7 +88,7 @@ func (e *Agent) Learn(state position.Position, act int, rwd int, next_state posi
 	pprl.SecureQtableUpdating(v_t, w_t, Qnew, e.stateNum, e.actionNum, testContext, encryptedQtable, user_name)
 }
 
-func (e *Agent) Trajectory(state position.Position, act int, rwd int, next_state position.Position, testContext *utils.TestParams, encryptedQtable []*mkckks.Ciphertext) ([]float64, []float64, float64) {
+func (e *Agent) Trajectory(state position.Position, act int, rwd int, next_state position.Position, encryptedQtable []*mkckks.Ciphertext) ([]float64, []float64, float64) {
 	state_1D := e.convert2DTo1D(state)
 	next_state_1D := e.convert2DTo1D(next_state)
 
