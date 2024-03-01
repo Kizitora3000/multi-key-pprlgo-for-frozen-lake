@@ -113,6 +113,29 @@ type TestParams struct {
 	Idset     *mkrlwe.IDSet
 }
 
+func (src *TestParams) Copy() *TestParams {
+	dst := &TestParams{
+		Params: src.Params,
+		RingQ:  src.RingQ,
+		RingP:  src.RingP,
+		Prng:   src.Prng,
+		Kgen:   src.Kgen,
+		SkSet:  src.SkSet,
+		PkSet:  src.PkSet,
+		RlkSet: src.RlkSet,
+		RtkSet: src.RtkSet,
+		CjkSet: src.CjkSet,
+		Idset:  src.Idset,
+	}
+
+	// Encryptor, Decryptor, Evaluatorは新しいインスタンスを生成
+	dst.Encryptor = mkckks.NewEncryptor(dst.Params)
+	dst.Decryptor = mkckks.NewDecryptor(dst.Params)
+	dst.Evaluator = mkckks.NewEvaluator(dst.Params)
+
+	return dst
+}
+
 func GenTestParams(defaultParam mkckks.Parameters, idset *mkrlwe.IDSet) (testContext *TestParams, err error) {
 
 	testContext = new(TestParams)
