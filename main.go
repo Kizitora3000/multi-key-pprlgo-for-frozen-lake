@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	EPISODES   = 200
-	MAX_AGENTS = 2
+	EPISODES  = 200
+	MAX_USERS = 2
 )
 
 // 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
@@ -49,15 +49,15 @@ func main() {
 
 	// ---------- set up for RL ----------
 
-	environments := make([]*environment.Environment, MAX_AGENTS)
-	agents := make([]*agent.Agent, MAX_AGENTS)
+	environments := make([]*environment.Environment, MAX_USERS)
+	agents := make([]*agent.Agent, MAX_USERS)
 
 	// init each environment and agent
-	for agent_i := 0; agent_i < MAX_AGENTS; agent_i++ {
-		environments[agent_i] = environment.NewEnvironment(lake)
-		agents[agent_i] = agent.NewAgent(environments[agent_i])
-		agents[agent_i].QtableReset(environments[agent_i])
-		agents[agent_i].Env.Reset()
+	for user_i := 0; user_i < MAX_USERS; user_i++ {
+		environments[user_i] = environment.NewEnvironment(lake)
+		agents[user_i] = agent.NewAgent(environments[user_i])
+		agents[user_i].QtableReset(environments[user_i])
+		agents[user_i].Env.Reset()
 	}
 
 	// ---------- set up for multi key ----------
@@ -68,13 +68,13 @@ func main() {
 	}
 
 	params := mkckks.NewParameters(ckks_params)
-	user_list := make([]string, MAX_AGENTS+1) // MAX_AGENTS + "cloud platform"
+	user_list := make([]string, MAX_USERS+1) // MAX_USERS + "cloud platform"
 	idset := mkrlwe.NewIDSet()
 
 	user_list[0] = "cloud platform"
 
-	// MAX_AGENTS分のIDを登録
-	for i := 1; i <= MAX_AGENTS; i++ {
+	// MAX_USERS分のIDを登録
+	for i := 1; i <= MAX_USERS; i++ {
 		user_list[i] = fmt.Sprintf("user%d", i)
 	}
 
@@ -94,36 +94,36 @@ func main() {
 	encryptedQtable := encryptQtable(agents[0].Qtable, testContext, user_list[0]) // user_list[0] = "cloud platform"
 
 	// 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネルを作成する．
-	updateChannel := make(chan QvalueUpdateData, MAX_AGENTS)
+	updateChannel := make(chan QvalueUpdateData, MAX_USERS)
 
 	// 成功率を算出するための変数を定義する．
 	goal_count := 0
 	total_espisode := 1
 	var success_rate_per_episode = make([]float64, EPISODES+1) // episode = 1 からスタートする
 
-	// 学習を開始
+	// 学習開始
 	for total_espisode < EPISODES {
 		var wg sync.WaitGroup
 
-		for agent_i := 0; agent_i < MAX_AGENTS; agent_i++ {
+		for user_i := 0; user_i < MAX_USERS; user_i++ {
 			// 各ユーザに独立したデータを渡すためにコピーを作成する．
 			localTestContext := testContext.Copy()
 			copiedEncryptedQtable := make([]*mkckks.Ciphertext, len(encryptedQtable))
 			copy(copiedEncryptedQtable, encryptedQtable)
 
 			wg.Add(1)
-			go func(agent_i int, copiedEncryptedQtable []*mkckks.Ciphertext, localTestContext *utils.TestParams) {
+			go func(user_i int, copiedEncryptedQtable []*mkckks.Ciphertext, localTestContext *utils.TestParams) {
 				defer wg.Done()
 
-				env := environments[agent_i]
-				agt := agents[agent_i]
+				env := environments[user_i]
+				agt := agents[user_i]
 
 				// 1ステップごとにユーザとクラウドプラットフォームのQテーブルを同期する．
 				agt.Qtable = decryptQtable(encryptedQtable, localTestContext)
 
 				state := agt.Env.AgentState
 				// action := agt.EpsilonGreedyAction(state)
-				action := agt.SecureEpsilonGreedyAction(state, localTestContext, copiedEncryptedQtable, user_list[agent_i+1])
+				action := agt.SecureEpsilonGreedyAction(state, localTestContext, copiedEncryptedQtable, user_list[user_i+1])
 				next_state, reward, done := env.Step(action)
 				v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, copiedEncryptedQtable)
 
@@ -132,7 +132,7 @@ func main() {
 				state = next_state
 
 				if done {
-					if agent_i == 0 {
+					if user_i == 0 {
 						if state == env.GoalPos {
 							goal_count++
 						}
@@ -141,7 +141,7 @@ func main() {
 					}
 					agt.Env.Reset()
 				}
-			}(agent_i, copiedEncryptedQtable, localTestContext)
+			}(user_i, copiedEncryptedQtable, localTestContext)
 		}
 		wg.Wait()
 
@@ -150,17 +150,17 @@ func main() {
 		fmt.Println(total_espisode, goal_rate, goal_count)
 
 		// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
-		for agent_i := 0; agent_i < MAX_AGENTS; agent_i++ {
-			e := environments[agent_i]
-			a := agents[agent_i]
+		for user_i := 0; user_i < MAX_USERS; user_i++ {
+			e := environments[user_i]
+			a := agents[user_i]
 
 			updateData := <-updateChannel
-			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, a.Env.Height()*a.Env.Width(), len(e.ActionSpace), testContext, encryptedQtable, user_list[agent_i+1])
+			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, a.Env.Height()*a.Env.Width(), len(e.ActionSpace), testContext, encryptedQtable, user_list[user_i+1])
 		}
 	}
 
 	// 平均成功率をCSVに書き出す
-	success_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d_in_agentNum_%d.csv", environments[0].Height(), environments[0].Width(), MAX_AGENTS)
+	success_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d_in_agentNum_%d.csv", environments[0].Height(), environments[0].Width(), MAX_USERS)
 	success_file, err := os.Create(success_rate_filename)
 	if err != nil {
 		panic(err)
