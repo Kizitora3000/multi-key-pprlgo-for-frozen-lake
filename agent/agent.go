@@ -186,13 +186,6 @@ func (a *Agent) SecureEpsilonGreedyAction(state position.Position, testContext *
 	actions_Q_in_state := pprl.SecureActionSelection(v_t, a.stateNum, a.actionNum, testContext, encryptedQtable, user_name)
 	actions_Q_in_state_msg := testContext.Decryptor.Decrypt(actions_Q_in_state, testContext.SkSet)
 
-	// fmt.Println(actions_Q_in_state_msg.Value)
-	// 復号時に生じる極小な誤差は切り捨てる
-	for i := 0; i < a.actionNum; i++ {
-		actions_Q_in_state_msg.Value[i] = TruncateComplex(actions_Q_in_state_msg.Value[i])
-	}
-	// fmt.Println(actions_Q_in_state_msg.Value)
-
 	maxAction := 0
 	maxQValue := real(actions_Q_in_state_msg.Value[0]) // 実部だけ抽出
 
