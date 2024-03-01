@@ -21,30 +21,41 @@ import (
 
 const (
 	EPISODES   = 200
-	MAX_USERS  = 3             // MAX_USERS = cloud + agents
-	MAX_AGENTS = MAX_USERS - 1 // agents = MAX_USERS - cloud
+	MAX_USERS  = 3
 	MAX_TRIALS = 100
 )
 
+func parseFlags() (string, error) {
+	// コマンドライン引数でマップのサイズを指定
+	mapSize := flag.String("s", "", "Size of the Frozen Lake map (options: 4x4, 5x5, 6x6)")
+	flag.Parse()
+
+	// `s`オプションが指定されているかチェック。指定されていなければエラーを返す
+	if *mapSize == "" {
+		return "", fmt.Errorf("Error: The -s option is required.")
+	}
+
+	return *mapSize, nil
+}
+
 func main() {
-	// agent.ChooseRandomAction()やagent.EpsilonGreedyAction()で使用する乱数値を固定
-	// 補足：rand.Seedはグローバルな乱数生成器のため、意図せず他のプログラムの乱数生成も固定してしまう可能性がある
-	// 　　　rand.New(rand.NewSource(0))はローカルな乱数生成器のため、プログラムごとに乱数生成を固定でき、他のプログラムに影響を与えない
-	// 　　　しかし、今回はプログラム全体で乱数を固定したいので、rand.Seedを使用する
+	// 乱数を固定
+	// 補足：プログラム全体で乱数を固定したいためグローバルな乱数生成器である rand.Seed を使用している．のため、意図せず他のプログラムの乱数生成も固定してしまう可能性がある
+	// 　　　ただし，意図せず他のファイルの乱数を固定してしまうことを避けるため，本来はローカルな乱数生成器である rand.New(rand.NewSource(0)) を使用することが推奨されている．
+	// 　　　今回はプログラム全体で乱数を固定したいので、rand.Seedを使用する
 	rand.Seed(0)
 
 	// コマンドライン引数でマップのサイズを指定
-	map_size := flag.String("s", "", "Size of the Frozen Lake map (options: 4x4, 5x5, 6x6)")
-	flag.Parse()
-
-	// `s`オプションが指定されているかチェック。指定されていなければ終了
-	if *map_size == "" {
-		fmt.Println("Error: The -s option is required.")
+	map_size, err := parseFlags()
+	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
 	var lake frozenlake.FrozenLake
-	switch *map_size {
+	switch map_size {
+	case "3x3":
+		lake = frozenlake.FrozenLake3x3
 	case "4x4":
 		lake = frozenlake.FrozenLake4x4
 	case "5x5":
@@ -52,33 +63,17 @@ func main() {
 	case "6x6":
 		lake = frozenlake.FrozenLake6x6
 	default:
-		fmt.Println("Invalid map size. Please choose from 4x4, 5x5, or 6x6.")
+		fmt.Println("Invalid map size. Please choose from 3x3, 4x4, 5x5, or 6x6.")
 		os.Exit(1)
 	}
 
 	// --- set up for RL ---
-	environments := make([]*environment.Environment, MAX_AGENTS)
-	agents := make([]*agent.Agent, MAX_AGENTS)
+	environments := make([]*environment.Environment, MAX_USERS)
+	agents := make([]*agent.Agent, MAX_USERS)
 
-	for i := 0; i < MAX_AGENTS; i++ {
+	for i := 0; i < MAX_USERS; i++ {
 		environments[i] = environment.NewEnvironment(lake)
 		agents[i] = agent.NewAgent(environments[i])
-	}
-
-	// --- set up for Result
-	success_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d.csv", lake.Height, lake.Width)
-	file, err := os.Create(success_rate_filename)
-	defer file.Close()
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-	writer.Write([]string{"Episode", "Success Rate"}) // 表頭を記入
-
-	eval_rate_filename := fmt.Sprintf("MKPPRL_eval_greedy_success_rate_%dx%d.csv", lake.Height, lake.Width)
-	// ファイルが存在する場合は削除 (eval_success_rateはeval関数が呼ばれるたびに追記していく形式なので、プログラム開始時は削除する)
-	if _, err := os.Stat(eval_rate_filename); err == nil {
-		if err := os.Remove(eval_rate_filename); err != nil {
-			panic(err)
-		}
 	}
 
 	// --- set up for multi key ---
@@ -88,11 +83,14 @@ func main() {
 	}
 
 	params := mkckks.NewParameters(ckks_params)
-	user_list := make([]string, MAX_USERS)
+	user_list := make([]string, MAX_USERS+1) // AGENTS + "Cloud Platform"
 	idset := mkrlwe.NewIDSet()
 
 	user_list[0] = "cloud"
-	user_list[1] = "user1"
+	// MAX_USERS分のIDを登録
+	for i := 1; i <= MAX_USERS; i++ {
+		user_list[i] = fmt.Sprintf("user%d", i)
+	}
 
 	for i := range user_list {
 		idset.Add(user_list[i])
@@ -104,8 +102,6 @@ func main() {
 	}
 
 	// ---PPRL ---
-	var success_rate_per_episode = make([][]float64, MAX_TRIALS)
-
 	// 試行ごとにクラウドのQ値を初期化
 	// 各エージェントの状態数・行動数は同一のため、いずれのagentsを用いて初期化しても問題ない。今回は代表としてagents[0]を使用する
 	encryptedQtable := make([]*mkckks.Ciphertext, agents[0].GetStateNum())
@@ -119,7 +115,7 @@ func main() {
 		encryptedQtable[i] = ciphertext
 	}
 
-	for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
+	for agent_idx := 0; agent_idx < MAX_USERS; agent_idx++ {
 		agents[agent_idx].QtableReset(environments[agent_idx])
 		agents[agent_idx].Env.Reset()
 	}
@@ -131,28 +127,32 @@ func main() {
 	}
 
 	// UpdateData型のチャネルを作成
-	updateChannel := make(chan UpdateData, MAX_AGENTS)
+	updateChannel := make(chan UpdateData, MAX_USERS)
 
-	for episode := 1; episode <= EPISODES; episode++ {
-		fmt.Println(episode)
+	goal_count := 0
+	total_espisode := 1
+	var success_rate_per_episode = make([]float64, EPISODES+10) // 配列外参照を防ぐため余裕を持っておく
+
+	for total_espisode < EPISODES {
 		var wg sync.WaitGroup
-		for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
+
+		for agent_idx := 0; agent_idx < MAX_USERS; agent_idx++ {
+			// 各ゴルーチンで独自のtestContextを生成する
+			localTestContext := testContext.Copy()
+			// クラウドプラットフォームのQテーブルをコピー
+			copiedEncryptedQtable := make([]*mkckks.Ciphertext, len(encryptedQtable))
+			for i, ct := range encryptedQtable {
+				copiedEncryptedQtable[i] = ct.CopyNew()
+			}
 
 			wg.Add(1)
-			go func(agent_idx int, encryptedQtable []*mkckks.Ciphertext) {
+			go func(agent_idx int, copiedEncryptedQtable []*mkckks.Ciphertext, localTestContext *utils.TestParams) {
 				defer wg.Done()
-
-				// 各ゴルーチンで独自のtestContextを生成する
-				localTestContext, err := utils.GenTestParams(params, idset)
-				if err != nil {
-					panic(err)
-				}
-
-				copiedEncryptedQtable := make([]*mkckks.Ciphertext, agents[0].GetStateNum())
-				copy(copiedEncryptedQtable, encryptedQtable)
 
 				env := environments[agent_idx]
 				agt := agents[agent_idx]
+
+				agt.Qtable = decryptedQTable(encryptedQtable, localTestContext)
 
 				state := agt.Env.AgentState
 				// action := agt.EpsilonGreedyAction(state)
@@ -163,90 +163,75 @@ func main() {
 				updateChannel <- UpdateData{V_t: v_t, W_t: w_t, Q: Q}
 
 				if done {
+					if agent_idx == 0 {
+						if next_state == env.GoalPos {
+							goal_count++
+						}
+
+						total_espisode++
+					}
+
 					agt.Env.Reset()
 				}
 				state = next_state
-			}(agent_idx, encryptedQtable)
+			}(agent_idx, copiedEncryptedQtable, localTestContext)
 		}
 		wg.Wait()
 
-		for agent_idx := 0; agent_idx < MAX_AGENTS; agent_idx++ {
+		goal_rate := float64(goal_count) / float64(total_espisode)
+		success_rate_per_episode[total_espisode] = goal_rate
+		fmt.Println(total_espisode, goal_rate, goal_count)
+		for agent_idx := 0; agent_idx < MAX_USERS; agent_idx++ {
 			e := environments[agent_idx]
 			a := agents[agent_idx]
 
 			updateData := <-updateChannel
 			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Q, a.Env.Height()*a.Env.Width(), len(e.ActionSpace), testContext, encryptedQtable, user_list[agent_idx+1])
 		}
-	}
-
-	// 成功率の平均値を計算
-	average_success_rates := make([]float64, EPISODES+1)
-	fmt.Println(len(success_rate_per_episode))
-	for _, goal_rates := range success_rate_per_episode {
-		for episode, goal_rate := range goal_rates {
-			average_success_rates[episode] += goal_rate / float64(MAX_TRIALS)
-		}
+		decryptedQTable(encryptedQtable, testContext)
 	}
 
 	// 平均成功率をCSVに書き出す
-	average_successl_rate_filename := fmt.Sprintf("MKPPRL_average_success_rate_%dx%d.csv", environments[0].Height(), environments[0].Width())
+	average_successl_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d_in_usernum_%d.csv", environments[0].Height(), environments[0].Width(), MAX_USERS)
 	average_file, err := os.Create(average_successl_rate_filename)
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
+	defer average_file.Close()
 
 	average_writer := csv.NewWriter(average_file)
 	defer average_writer.Flush()
 
 	// ヘッダーを書き込む
-	average_writer.Write([]string{"Episode", "Average Success Rate"})
+	average_writer.Write([]string{"Episode", "Success Rate"})
 
 	// データを書き込む
-	for episode, average_success_rate := range average_success_rates {
+	for episode, average_success_rate := range success_rate_per_episode {
+		// episode は1で始まる
+		if episode == 0 {
+			continue
+		}
+
 		average_writer.Write([]string{fmt.Sprintf("%d", episode), fmt.Sprintf("%.2f", average_success_rate)})
 	}
-
-	fmt.Println()
-
-	// その他デバッグ情報の表示
-	agents[0].ShowQTable()
-	// agents[0].ShowOptimalPath(environments[0])
-	// ShowDecryptedQTable(agents[0], encryptedQtable, testContext)
-	// fmt.Println(calcMSE(agt, encryptedQtable, testContext))
 }
 
-func calcMSE(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext, testContext *utils.TestParams) float64 {
-	// 復号化されたQテーブルを格納するための変数
-	decryptedQtable := make([][]float64, agt.GetStateNum())
+func decryptedQTable(encryptedQtable []*mkckks.Ciphertext, testContext *utils.TestParams) [][]float64 {
+	qtable := make([][]float64, len(encryptedQtable))
 
-	// 復号化されたQテーブルの初期化
-	for i := range decryptedQtable {
-		decryptedQtable[i] = make([]float64, agt.GetActionNum())
-	}
-
-	// encryptedQtableの復号化
 	for i, encryptedValue := range encryptedQtable {
-		decryptedMessage := testContext.Decryptor.Decrypt(encryptedValue, testContext.SkSet)
-		for j := 0; j < agt.GetActionNum(); j++ {
-			decryptedQtable[i][j] = real(decryptedMessage.Value[j])
+		// ここで復号化プロセスを実行
+		decryptedValue := testContext.Decryptor.Decrypt(encryptedValue, testContext.SkSet)
+		qtable[i] = make([]float64, decryptedValue.Slots())
+
+		for j := 0; j < decryptedValue.Slots(); j++ {
+			qtable[i][j] = real(decryptedValue.Value[j])
 		}
 	}
-
-	// MSEの計算
-	var mse float64
-	for i := range agt.Qtable {
-		for j := range agt.Qtable[i] {
-			diff := agt.Qtable[i][j] - decryptedQtable[i][j]
-			mse += diff * diff
-		}
-	}
-	mse /= float64(agt.GetStateNum() * agt.GetActionNum())
-
-	return mse
+	return qtable
 }
 
-func ShowDecryptedQTable(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext, testContext *utils.TestParams) {
+func ShowDecryptedQTable(encryptedQtable []*mkckks.Ciphertext, testContext *utils.TestParams) {
 	// 暗号化されたQテーブルの各要素を復号化して表示
 	fmt.Println("Decrypted Qtable:")
 	for i, encryptedValue := range encryptedQtable {
@@ -255,62 +240,9 @@ func ShowDecryptedQTable(agt *agent.Agent, encryptedQtable []*mkckks.Ciphertext,
 		// 復号化された値を表示
 		// fmt.Printf("State %d: %f\n", i, decryptedValue)
 		// 復号された値を表示
-		height := int(math.Sqrt(float64(agt.GetStateNum())))
+		height := int(math.Sqrt(float64(len(encryptedQtable))))
 		x := i % height
 		y := i / height
-		fmt.Printf("State [Y: %d, X: %d]: %f\n", y, x, decryptedValue.Value)
+		fmt.Printf("State [Y: %d, X: %d]: ↑: %f, ↓: %f, ←: %f, →: %f\n", y, x, real(decryptedValue.Value[0]), real(decryptedValue.Value[1]), real(decryptedValue.Value[2]), real(decryptedValue.Value[3]))
 	}
-}
-
-func evaluateGreedyActionAtEpisodes(now_episode int, env *environment.Environment, agt *agent.Agent) {
-	// ファイルを追記モードで開く（ファイルが存在しない場合は新しく作成）
-	eval_rate_filename := fmt.Sprintf("MKPPRL_eval_greedy_success_rate_%dx%d.csv", env.Height(), env.Width())
-	file, err := os.OpenFile(eval_rate_filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// ファイルが空（新規作成されたばかり）の場合、ヘッダーを書き込む
-	fileInfo, err := file.Stat()
-	if err != nil {
-		panic(err)
-	}
-	if fileInfo.Size() == 0 {
-		writer.Write([]string{"Episode", "Success Rate"}) // 表頭を記入
-	}
-
-	goal_count := 0 // エピソードでのゴール到達回数をカウント
-	trials := 100   // 評価のために各エピソードを何回実行するか
-
-	for i := 0; i < trials; i++ {
-		state := env.Reset()
-		cnt := 0
-		for {
-			action := agt.GreedyAction(state) // 学習済みのQテーブルを使用して最適な行動を選択
-			next_state, _, done := env.Step(action)
-
-			if done {
-				if next_state == env.GoalPos {
-					goal_count++
-				}
-				break
-			}
-
-			if cnt > 100 {
-				break
-			}
-
-			state = next_state
-			cnt++
-		}
-	}
-
-	goalRate := float64(goal_count) / float64(trials) * 100.0
-	// fmt.Printf("Greedy Action Goal Rate: %.2f%%\n", goalRate)
-
-	writer.Write([]string{fmt.Sprintf("%d", int(now_episode)), fmt.Sprintf("%.2f", goalRate)})
 }
