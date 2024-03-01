@@ -96,6 +96,9 @@ func SecureActionSelection(v_t []float64, Nv int, Na int, testContext *utils.Tes
 	actions_msg := mkckks.NewMessage(testContext.Params)
 	actions := testContext.Encryptor.EncryptMsgNew(actions_msg, testContext.PkSet.GetPublicKey(user_name))
 	for i := 0; i < Nv; i++ {
+		temp := testContext.Decryptor.Decrypt(EncryptedQtable[i], testContext.SkSet)
+		EncryptedQtable[i] = testContext.Encryptor.EncryptMsgNew(temp, testContext.PkSet.GetPublicKey(user_name))
+
 		// s_t[i] == 1: [1, ..., 1] * [Q1, ..., Qn] = [Q1, ..., Qn](s_t)
 		// s_t[i] == 0: [0, ..., 0] * [Q1, ..., Qn] = [0 , ..., 0]
 		v_t_expanded[i] = testContext.Evaluator.MulRelinNew(v_t_expanded[i], EncryptedQtable[i], testContext.RlkSet)
