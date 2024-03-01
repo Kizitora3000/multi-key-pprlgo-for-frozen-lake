@@ -24,10 +24,18 @@ func initializeOnes(Na int, params mkckks.Parameters) *mkckks.Message {
 func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, Nv int, Na int, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) {
 	v_t_expanded := make([]*mkckks.Ciphertext, Nv)
 
-	// 行動(w_t)は横の行列のため、縦の行列である状態(v_t)も横に拡張する
-	//[0,		[0, 0, 0, 0]
-	// 1,  ->   [1, 1, 1, 1]
-	// 0]		[0, 0, 0, 0]
+	/*
+		行動(w_t)は行ベクトルのため、列ベクトルである状態(v_t)を行方向に拡張する
+		v_t -> v_t_expanted
+		[0, -> [0, 0, 0, 0]
+		 :      :  :  :  :
+		 0, -> [0, 0, 0, 0]
+		 1, -> [1, 1, 1, 1]
+		 0, -> [0, 0, 0, 0]
+		 :      :  :  :  :
+		 0] -> [0, 0, 0, 0]
+	*/
+
 	for i := 0; i < Nv; i++ {
 		if v_t[i] == 0 {
 			zeros := initializeZeros(Na, testContext.Params)
@@ -79,10 +87,18 @@ func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, Nv int, N
 func SecureActionSelection(v_t []float64, Nv int, Na int, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) *mkckks.Ciphertext {
 	v_t_expanded := make([]*mkckks.Ciphertext, Nv)
 
-	// 行動(w_t)は横の行列のため、縦の行列である状態(v_t)も横に拡張する
-	//[0,		[0, 0, 0, 0]
-	// 1,  ->   [1, 1, 1, 1]
-	// 0]		[0, 0, 0, 0]
+	/*
+		行動(w_t)は行ベクトルのため、列ベクトルである状態(v_t)を行方向に拡張する
+		v_t -> v_t_expanted
+		[0, -> [0, 0, 0, 0]
+		 :      :  :  :  :
+		 0, -> [0, 0, 0, 0]
+		 1, -> [1, 1, 1, 1]
+		 0, -> [0, 0, 0, 0]
+		 :      :  :  :  :
+		 0] -> [0, 0, 0, 0]
+	*/
+
 	for i := 0; i < Nv; i++ {
 		if v_t[i] == 0 {
 			zeros := initializeZeros(Na, testContext.Params)
