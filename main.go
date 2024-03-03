@@ -147,20 +147,17 @@ func main() {
 
 		goal_rate := float64(goal_count) / float64(total_espisode)
 		success_rate_per_episode[total_espisode] = goal_rate
-		fmt.Println(total_espisode, goal_rate, goal_count)
+		fmt.Printf("\r進捗: %.1f%% (%d/%d)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES)
 
 		// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
 		for user_i := 0; user_i < MAX_USERS; user_i++ {
-			e := environments[user_i]
-			a := agents[user_i]
-
 			updateData := <-updateChannel
 			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
 		}
 	}
 
 	// 平均成功率をCSVに書き出す
-	success_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d_in_agentNum_%d.csv", environments[0].Height(), environments[0].Width(), MAX_USERS)
+	success_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d_in_userNum_%d.csv", environments[0].Height(), environments[0].Width(), MAX_USERS)
 	success_file, err := os.Create(success_rate_filename)
 	if err != nil {
 		panic(err)
