@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	EPISODES  = 200
-	MAX_USERS = 2
+	EPISODES   = 200
+	MAX_USERS  = 2
+	MAX_TRIALS = 10
 )
 
 // 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
@@ -97,86 +98,98 @@ func main() {
 	updateChannel := make(chan QvalueUpdateData, MAX_USERS)
 
 	// 成功率を算出するための変数を定義する．
-	goal_count := 0
-	total_espisode := 1
+	var success_rate_per_trial [][]float64
 	var success_rate_per_episode = make([]float64, EPISODES+1) // episode = 1 からスタートする
 
-	// 学習開始
-	for total_espisode < EPISODES {
-		var wg sync.WaitGroup
+	for trial := 0; trial < MAX_TRIALS; trial++ {
+		goal_count := 0
+		total_espisode := 1
 
-		for user_i := 0; user_i < MAX_USERS; user_i++ {
-			// 各ユーザに独立したデータを渡すためにコピーを作成する．
-			localTestContext := testContext.Copy()
-			copiedEncryptedQtable := make([]*mkckks.Ciphertext, len(encryptedQtable))
-			copy(copiedEncryptedQtable, encryptedQtable)
+		// 学習開始
+		for total_espisode < EPISODES {
+			var wg sync.WaitGroup
 
-			wg.Add(1)
-			go func(user_i int, copiedEncryptedQtable []*mkckks.Ciphertext, localTestContext *utils.TestParams) {
-				defer wg.Done()
+			for user_i := 0; user_i < MAX_USERS; user_i++ {
+				// 各ユーザに独立したデータを渡すためにコピーを作成する．
+				localTestContext := testContext.Copy()
+				copiedEncryptedQtable := make([]*mkckks.Ciphertext, len(encryptedQtable))
+				copy(copiedEncryptedQtable, encryptedQtable)
 
-				env := environments[user_i]
-				agt := agents[user_i]
+				wg.Add(1)
+				go func(user_i int, copiedEncryptedQtable []*mkckks.Ciphertext, localTestContext *utils.TestParams) {
+					defer wg.Done()
 
-				// 1ステップごとにユーザとクラウドプラットフォームのQテーブルを同期する．
-				agt.Qtable = decryptQtable(encryptedQtable, localTestContext)
+					env := environments[user_i]
+					agt := agents[user_i]
 
-				state := agt.Env.AgentState
-				// action := agt.EpsilonGreedyAction(state)
-				action := agt.SecureEpsilonGreedyAction(state, localTestContext, copiedEncryptedQtable, user_list[user_i+1])
-				next_state, reward, done := env.Step(action)
-				v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, copiedEncryptedQtable)
+					// 1ステップごとにユーザとクラウドプラットフォームのQテーブルを同期する．
+					agt.Qtable = decryptQtable(encryptedQtable, localTestContext)
 
-				updateChannel <- QvalueUpdateData{V_t: v_t, W_t: w_t, Qvalue: Q}
+					state := agt.Env.AgentState
+					// action := agt.EpsilonGreedyAction(state)
+					action := agt.SecureEpsilonGreedyAction(state, localTestContext, copiedEncryptedQtable, user_list[user_i+1])
+					next_state, reward, done := env.Step(action)
+					v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, copiedEncryptedQtable)
 
-				state = next_state
+					updateChannel <- QvalueUpdateData{V_t: v_t, W_t: w_t, Qvalue: Q}
 
-				if done {
-					if user_i == 0 {
-						if state == env.GoalPos {
-							goal_count++
+					state = next_state
+
+					if done {
+						if user_i == 0 {
+							if state == env.GoalPos {
+								goal_count++
+							}
+
+							total_espisode++
 						}
-
-						total_espisode++
+						agt.Env.Reset()
 					}
-					agt.Env.Reset()
-				}
-			}(user_i, copiedEncryptedQtable, localTestContext)
-		}
-		wg.Wait()
+				}(user_i, copiedEncryptedQtable, localTestContext)
+			}
+			wg.Wait()
 
-		goal_rate := float64(goal_count) / float64(total_espisode)
-		success_rate_per_episode[total_espisode] = goal_rate
-		fmt.Printf("\r進捗: %.1f%% (%d/%d)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES)
+			goal_rate := float64(goal_count) / float64(total_espisode)
+			success_rate_per_episode[total_espisode] = goal_rate
+			fmt.Printf("\r進捗: %5.1f%% (trial: (%d/%d), episode: (%d/%d))", float64(total_espisode*(trial+1))/float64(EPISODES*MAX_TRIALS)*100, trial, MAX_TRIALS, total_espisode, EPISODES)
 
-		// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
-		for user_i := 0; user_i < MAX_USERS; user_i++ {
-			updateData := <-updateChannel
-			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
+			// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
+			for user_i := 0; user_i < MAX_USERS; user_i++ {
+				updateData := <-updateChannel
+				pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
+			}
 		}
+
+		success_rate_per_trial = append(success_rate_per_trial, success_rate_per_episode)
 	}
 
+	fmt.Println(success_rate_per_trial)
+
 	// 平均成功率をCSVに書き出す
-	success_rate_filename := fmt.Sprintf("MKPPRL_success_rate_%dx%d_in_userNum_%d.csv", environments[0].Height(), environments[0].Width(), MAX_USERS)
-	success_file, err := os.Create(success_rate_filename)
+	average_success_rate_filename := fmt.Sprintf("MKPPRL_average_success_rate_%dx%d_in_userNum_%d.csv", environments[0].Height(), environments[0].Width(), MAX_USERS)
+	average_success_file, err := os.Create(average_success_rate_filename)
 	if err != nil {
 		panic(err)
 	}
-	defer success_file.Close()
+	defer average_success_file.Close()
 
-	success_writer := csv.NewWriter(success_file)
-	defer success_writer.Flush()
+	average_success_writer := csv.NewWriter(average_success_file)
+	defer average_success_writer.Flush()
 
 	// ヘッダーを書き込む
-	success_writer.Write([]string{"Episode", "Success Rate"})
+	average_success_writer.Write([]string{"Episode", "Average Success Rate"})
+
+	fmt.Println(success_rate_per_trial)
 
 	// データを書き込む
-	for episode, success_rate := range success_rate_per_episode {
-		// episode は1で始まる
-		if episode == 0 {
-			continue
+	for episode := 1; episode <= EPISODES; episode++ {
+		average_success_rate := 0.0
+
+		for trial := 0; trial < MAX_TRIALS; trial++ {
+			average_success_rate += success_rate_per_trial[trial][episode] / float64(MAX_TRIALS)
 		}
-		success_writer.Write([]string{fmt.Sprintf("%d", episode), fmt.Sprintf("%.2f", success_rate)})
+
+		average_success_writer.Write([]string{fmt.Sprintf("%d", episode), fmt.Sprintf("%.2f", average_success_rate)})
 	}
 }
 
