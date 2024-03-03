@@ -85,7 +85,7 @@ func (e *Agent) Learn(state position.Position, act int, rwd int, next_state posi
 	w_t[act] = 1
 
 	Qnew := e.Qtable[state_1D][act]
-	pprl.SecureQtableUpdating(v_t, w_t, Qnew, e.stateNum, e.actionNum, testContext, encryptedQtable, user_name)
+	pprl.SecureQtableUpdating(v_t, w_t, Qnew, testContext, encryptedQtable, user_name)
 }
 
 func (e *Agent) Trajectory(state position.Position, act int, rwd int, next_state position.Position, encryptedQtable []*mkckks.Ciphertext) ([]float64, []float64, float64) {

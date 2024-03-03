@@ -155,7 +155,7 @@ func main() {
 			a := agents[user_i]
 
 			updateData := <-updateChannel
-			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, a.Env.Height()*a.Env.Width(), len(e.ActionSpace), testContext, encryptedQtable, user_list[user_i+1])
+			pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
 		}
 	}
 

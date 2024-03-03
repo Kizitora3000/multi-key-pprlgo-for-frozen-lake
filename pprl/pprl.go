@@ -21,7 +21,10 @@ func initializeOnes(Na int, params mkckks.Parameters) *mkckks.Message {
 	return ones
 }
 
-func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, Nv int, Na int, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) {
+func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) {
+	Nv := len(v_t)
+	Na := len(w_t)
+
 	v_t_expanded := make([]*mkckks.Ciphertext, Nv)
 
 	/*
