@@ -15,7 +15,7 @@ const (
 type Environment struct {
 	frozenLake  frozenlake.FrozenLake
 	ActionSpace []int             // エージェントの行動空間 (エージェントを作成する際に行動空間の大きさが知りたいので外部に公開する)
-	agentState  position.Position // エージェントの現在位置
+	AgentState  position.Position // エージェントの現在位置
 	rewards     [][]int
 	isHole      map[position.Position]bool // True: 穴, False: 地面
 	StartPos    position.Position
@@ -25,7 +25,7 @@ type Environment struct {
 func NewEnvironment(lake frozenlake.FrozenLake) *Environment {
 	frozenLake := lake
 	actionSpace := []int{0, 1, 2, 3}  // 0: "↑", 1: "↓", 2: "←", 3: "→"
-	agentState := frozenLake.StartPos // エージェントの位置はスタート地点で初期化
+	AgentState := frozenLake.StartPos // エージェントの位置はスタート地点で初期化
 	isHole := make(map[position.Position]bool)
 
 	// Height x Width の2次元配列を作成
@@ -54,7 +54,7 @@ func NewEnvironment(lake frozenlake.FrozenLake) *Environment {
 	return &Environment{
 		frozenLake:  frozenLake,
 		ActionSpace: actionSpace,
-		agentState:  agentState,
+		AgentState:  AgentState,
 		rewards:     rewards,
 		isHole:      isHole,
 		StartPos:    frozenLake.StartPos,
@@ -80,8 +80,8 @@ func (e *Environment) Reward(state position.Position, nextState position.Positio
 }
 
 func (e *Environment) Reset() position.Position {
-	e.agentState = e.frozenLake.StartPos
-	return e.agentState
+	e.AgentState = e.frozenLake.StartPos
+	return e.AgentState
 }
 
 func (e *Environment) NextState(state position.Position, action int) position.Position {
@@ -101,7 +101,7 @@ func (e *Environment) NextState(state position.Position, action int) position.Po
 }
 
 func (e *Environment) Step(action int) (position.Position, int, bool) {
-	state := e.agentState
+	state := e.AgentState
 	nextState := e.NextState(state, action)
 	reward := e.Reward(state, nextState) - 1 // ステップ数が増えるごとにペナルティも増える
 	done := false
@@ -110,7 +110,7 @@ func (e *Environment) Step(action int) (position.Position, int, bool) {
 	// 状態毎の報酬はNewEnvironment関数のrewardsにて設定済み
 	done = e.isHole[nextState] || nextState == e.frozenLake.GoalPos
 
-	e.agentState = nextState
+	e.AgentState = nextState
 
 	return nextState, reward, done
 }
