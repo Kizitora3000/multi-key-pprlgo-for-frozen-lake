@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	EPISODES   = 100
+	EPISODES   = 200
 	MAX_USERS  = 1
-	MAX_TRIALS = 1
+	MAX_TRIALS = 100
 )
 
 // 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
@@ -183,7 +183,7 @@ func main() {
 
 				// 代表として trial=0 の進捗を表示
 				if trial == 0 {
-					fmt.Printf("\r進捗: %5.1f%% (trial: (%d/%d), episode: (%d/%d))", float64(total_espisode+(EPISODES*trial))/float64(EPISODES*MAX_TRIALS)*100, trial+1, MAX_TRIALS, total_espisode, EPISODES)
+					fmt.Printf("\r進捗: %5.1f%% (episode: (%d/%d), max trial: (%d))", float64(total_espisode)/float64(EPISODES)*100, MAX_TRIALS, total_espisode, EPISODES)
 				}
 
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
