@@ -11,6 +11,13 @@ import (
 	"github.com/ldsec/lattigo/v2/utils"
 )
 
+// 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
+type QvalueUpdateData struct {
+	V_t    []float64 // 状態のバイナリベクトル
+	W_t    []float64 // 行動のバイナリベクトル
+	Qvalue float64
+}
+
 // ckks parameters
 var (
 	PN15QP880 = ckks.ParametersLiteral{
