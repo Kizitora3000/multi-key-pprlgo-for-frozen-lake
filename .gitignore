@@ -1,2 +1,5 @@
 go.sum
 *.csv
+
+# 結果を残すためresultディレクトリのみcsvを扱う
+!results/**/*.csv
