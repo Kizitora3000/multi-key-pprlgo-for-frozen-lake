@@ -11,18 +11,20 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/ldsec/lattigo/v2/ckks"
 )
 
 const (
-	EPISODES   = 200
-	MAX_USERS  = 3
-	MAX_TRIALS = 100
+	EPISODES   = 100
+	MAX_USERS  = 1
+	MAX_TRIALS = 1
 )
 
 // 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
@@ -42,11 +44,27 @@ func main() {
 	*/
 
 	// -s フラグから氷結湖問題のサイズを取得
-	lake, err := parseSFlag()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	map_size, is_measure := parseFlag()
+
+	var lake frozenlake.FrozenLake
+
+	switch *map_size {
+	case "3x3":
+		lake = frozenlake.FrozenLake3x3
+	case "4x4":
+		lake = frozenlake.FrozenLake4x4
+	case "5x5":
+		lake = frozenlake.FrozenLake5x5
+	case "6x6":
+		lake = frozenlake.FrozenLake6x6
+	case "":
+		log.Fatalf("error: the -s option is required")
+	default:
+		log.Fatalf("error: please choose from 3x3, 4x4, 5x5, 6x6")
 	}
+
+	// 処理時間計測用
+	var elapsed_list []time.Duration
 
 	// 成功率を算出するための変数を定義する．
 	var success_rate_per_trial [][]float64
@@ -114,6 +132,11 @@ func main() {
 			for total_espisode < EPISODES {
 				var wg sync.WaitGroup
 
+				var start time.Time
+				if *is_measure {
+					start = time.Now()
+				}
+
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
 					// 各ユーザに独立したデータを渡すためにコピーを作成する．
 					localTestContext := testContext.Copy()
@@ -131,8 +154,9 @@ func main() {
 						agt.Qtable = decryptQtable(encryptedQtable, localTestContext)
 
 						state := agt.Env.AgentState
-						// action := agt.EpsilonGreedyAction(state)
-						action := agt.SecureEpsilonGreedyAction(state, localTestContext, copiedEncryptedQtable, user_list[user_i+1])
+
+						action := agt.EpsilonGreedyAction(state)
+
 						next_state, reward, done := env.Step(action)
 						v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, copiedEncryptedQtable)
 
@@ -166,6 +190,21 @@ func main() {
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
 					updateData := <-updateChannel
 					pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
+				}
+
+				if *is_measure {
+					elapsed := time.Since(start)
+
+					elapsed_list = append(elapsed_list, elapsed)
+
+					elapsed_sum := time.Duration(0)
+					for i := 0; i < len(elapsed_list); i++ {
+						elapsed_sum += elapsed_list[i]
+					}
+
+					elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
+
+					fmt.Printf(" %d: %s\n", len(elapsed_list), elapsed_average)
 				}
 			}
 
@@ -204,33 +243,14 @@ func main() {
 }
 
 // -s フラグ (マップサイズの指定) を解析
-func parseSFlag() (frozenlake.FrozenLake, error) {
-	var lake frozenlake.FrozenLake
-
+func parseFlag() (*string, *bool) {
 	// -s フラグを定義
 	map_size := flag.String("s", "", "Size of the Frozen Lake map (options: 4x4, 5x5, 6x6)")
+	is_measure := flag.Bool("m", false, "Set to true to measure execution time.")
 
 	flag.Parse()
 
-	// "s"オプションが指定されていなければエラーを返す
-	if *map_size == "" {
-		return lake, fmt.Errorf("error: the -s option is required")
-	}
-
-	switch *map_size {
-	case "3x3":
-		lake = frozenlake.FrozenLake3x3
-	case "4x4":
-		lake = frozenlake.FrozenLake4x4
-	case "5x5":
-		lake = frozenlake.FrozenLake5x5
-	case "6x6":
-		lake = frozenlake.FrozenLake6x6
-	default:
-		return lake, fmt.Errorf("error: please choose from 3x3, 4x4, 5x5, 6x6")
-	}
-
-	return lake, nil
+	return map_size, is_measure
 }
 
 func encryptQtable(qtable [][]float64, testContext *utils.TestParams, user_name string) []*mkckks.Ciphertext {
