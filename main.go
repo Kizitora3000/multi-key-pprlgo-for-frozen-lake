@@ -22,17 +22,10 @@ import (
 )
 
 const (
-	EPISODES   = 200
-	MAX_USERS  = 1
-	MAX_TRIALS = 100
+	EPISODES   = 20
+	MAX_USERS  = 2
+	MAX_TRIALS = 1
 )
-
-// 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
-type QvalueUpdateData struct {
-	V_t    []float64 // 状態のバイナリベクトル
-	W_t    []float64 // 行動のバイナリベクトル
-	Qvalue float64
-}
 
 func main() {
 	// 乱数を固定 (*)
@@ -122,7 +115,7 @@ func main() {
 			encryptedQtable := encryptQtable(agents[0].Qtable, testContext, user_list[0]) // user_list[0] = "cloud platform"
 
 			// 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネルを作成する．
-			updateChannel := make(chan QvalueUpdateData, MAX_USERS)
+			updateChannel := make(chan utils.QvalueUpdateData, MAX_USERS)
 
 			goal_count := 0
 			total_espisode := 1
@@ -160,7 +153,7 @@ func main() {
 						next_state, reward, done := env.Step(action)
 						v_t, w_t, Q := agt.Trajectory(state, action, reward, next_state, copiedEncryptedQtable)
 
-						updateChannel <- QvalueUpdateData{V_t: v_t, W_t: w_t, Qvalue: Q}
+						updateChannel <- utils.QvalueUpdateData{V_t: v_t, W_t: w_t, Qvalue: Q}
 
 						state = next_state
 
@@ -183,14 +176,18 @@ func main() {
 
 				// 代表として trial=0 の進捗を表示
 				if trial == 0 {
-					fmt.Printf("\r進捗: %5.1f%% (episode: (%d/%d), max trial: (%d))", float64(total_espisode)/float64(EPISODES)*100, MAX_TRIALS, total_espisode, EPISODES)
+					fmt.Printf("\r進捗: %5.1f%% (episode: (%d/%d), max trial: %d)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, MAX_TRIALS)
 				}
 
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
+				temp := make([]utils.QvalueUpdateData, MAX_USERS)
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
 					updateData := <-updateChannel
-					pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
+					// pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
+					temp[user_i] = utils.QvalueUpdateData{V_t: updateData.V_t, W_t: updateData.W_t, Qvalue: updateData.Qvalue}
 				}
+
+				pprl.SecureQtableMultiUpdating(temp, testContext, encryptedQtable, user_list[1])
 
 				if *is_measure {
 					elapsed := time.Since(start)
