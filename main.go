@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	EPISODES   = 200
-	MAX_USERS  = 2
+	EPISODES   = 20
+	MAX_USERS  = 1
 	MAX_TRIALS = 1
 )
 
@@ -180,14 +180,56 @@ func main() {
 				}
 
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
-				temp := make([]utils.QvalueUpdateData, MAX_USERS)
+				updateData := make([]utils.QvalueUpdateData, MAX_USERS)
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
-					updateData := <-updateChannel
+					temp := <-updateChannel
 					// pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
-					temp[user_i] = utils.QvalueUpdateData{V_t: updateData.V_t, W_t: updateData.W_t, Qvalue: updateData.Qvalue}
+					updateData[user_i] = utils.QvalueUpdateData{V_t: temp.V_t, W_t: temp.W_t, Qvalue: temp.Qvalue}
 				}
 
-				pprl.SecureQtableMultiUpdating2(temp, testContext, encryptedQtable, user_list[1])
+				// pprl.SecureQtableMultiUpdating2(temp, testContext, encryptedQtable, user_list[1])
+
+				var update_wg sync.WaitGroup
+				EncryptedQtables := make([][]*mkckks.Ciphertext, MAX_USERS)
+				for user := 0; user < MAX_USERS; user++ {
+					localTestContext := testContext.Copy()
+					copiedEncryptedQtable := make([]*mkckks.Ciphertext, len(encryptedQtable))
+					copy(copiedEncryptedQtable, encryptedQtable)
+
+					update_wg.Add(1)
+					go func(user int, copiedEncryptedQtable []*mkckks.Ciphertext, localTestContext *utils.TestParams) {
+						defer update_wg.Done()
+						EncryptedQtables[user] = pprl.SecureQtableMultiUpdating3(updateData[user], localTestContext, copiedEncryptedQtable, user_list[user])
+					}(user, copiedEncryptedQtable, localTestContext)
+				}
+				update_wg.Wait()
+
+				newEncryptedQtable := encryptQtable(agents[0].Qtable, testContext, user_list[0])
+
+				for state := 0; state < lake.Height*lake.Width; state++ {
+					for user := 0; user < MAX_USERS; user++ {
+						coeff_msg := mkckks.NewMessage(testContext.Params)
+						for action := 0; action < 4; action++ {
+							coeff_msg.Value[action] = complex(1.0/2.0, 0) // 虚部は0
+						}
+						coeff_ct := testContext.Encryptor.EncryptMsgNew(coeff_msg, testContext.PkSet.GetPublicKey(user_list[0]))
+
+						// fmt.Println(testContext.Decryptor.Decrypt(EncryptedQtables[user][state], testContext.SkSet))
+						EncryptedQtables[user][state] = testContext.Evaluator.MulRelinNew(EncryptedQtables[user][state], coeff_ct, testContext.RlkSet)
+
+						temp := testContext.Decryptor.Decrypt(EncryptedQtables[user][state], testContext.SkSet)
+						re_EncryptedQtable_user_state := testContext.Encryptor.EncryptMsgNew(temp, testContext.PkSet.GetPublicKey(user_list[user]))
+
+						newEncryptedQtable[state] = testContext.Evaluator.AddNew(re_EncryptedQtable_user_state, EncryptedQtables[user][state])
+
+						abc := testContext.Decryptor.Decrypt(newEncryptedQtable[state], testContext.SkSet)
+						newEncryptedQtable[state] = testContext.Encryptor.EncryptMsgNew(abc, testContext.PkSet.GetPublicKey(user_list[user]))
+
+					}
+				}
+
+				// encryptedQtable = newEncryptedQtable
+				copy(encryptedQtable, newEncryptedQtable)
 
 				if *is_measure {
 					elapsed := time.Since(start)

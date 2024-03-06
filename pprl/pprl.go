@@ -114,6 +114,89 @@ func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, testConte
 	}
 }
 
+func SecureQtableMultiUpdating3(data utils.QvalueUpdateData, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) (outputEncryptedQtable []*mkckks.Ciphertext) {
+	v_t := data.V_t
+	w_t := data.W_t
+	Q_new := data.Qvalue
+
+	Nv := len(v_t)
+	Na := len(w_t)
+
+	Q_v_t_expanded := make([]*mkckks.Ciphertext, Nv)
+	for i := 0; i < Nv; i++ {
+		if v_t[i] == 0 {
+			zeros := initializeZeros(Na, testContext.Params)
+			Q_v_t_expanded[i] = testContext.Encryptor.EncryptMsgNew(zeros, testContext.PkSet.GetPublicKey(user_name))
+		} else if v_t[i] == 1 {
+			ones := initializeQvalue(Na, Q_new, testContext.Params)
+			Q_v_t_expanded[i] = testContext.Encryptor.EncryptMsgNew(ones, testContext.PkSet.GetPublicKey(user_name))
+		}
+	}
+
+	v_t_expanded := make([]*mkckks.Ciphertext, Nv)
+
+	/*
+		行動(w_t)は行ベクトルのため、列ベクトルである状態(v_t)を行方向に拡張する
+		v_t -> v_t_expanted
+		[0, -> [0, 0, 0, 0]
+		 :      :  :  :  :
+		 0, -> [0, 0, 0, 0]
+		 1, -> [1, 1, 1, 1]
+		 0, -> [0, 0, 0, 0]
+		 :      :  :  :  :
+		 0] -> [0, 0, 0, 0]
+	*/
+
+	for i := 0; i < Nv; i++ {
+		if v_t[i] == 0 {
+			zeros := initializeZeros(Na, testContext.Params)
+			v_t_expanded[i] = testContext.Encryptor.EncryptMsgNew(zeros, testContext.PkSet.GetPublicKey(user_name))
+		} else if v_t[i] == 1 {
+			ones := initializeOnes(Na, testContext.Params)
+			v_t_expanded[i] = testContext.Encryptor.EncryptMsgNew(ones, testContext.PkSet.GetPublicKey(user_name))
+		}
+	}
+
+	w_t_msg := mkckks.NewMessage(testContext.Params)
+	for i := 0; i < Na; i++ {
+		w_t_msg.Value[i] = complex(w_t[i], 0) // 虚部は0
+	}
+	fhe_w_t := testContext.Encryptor.EncryptMsgNew(w_t_msg, testContext.PkSet.GetPublicKey(user_name))
+
+	// Q_news_msg := mkckks.NewMessage(testContext.Params)
+	// for i := 0; i < Na; i++ {
+	// 	Q_news_msg.Value[i] = complex(Q_new, 0) // 虚部は0
+	// }
+	// fhe_Q_news := testContext.Encryptor.EncryptMsgNew(Q_news_msg, testContext.PkSet.GetPublicKey(user_name))
+
+	for i := 0; i < Nv; i++ {
+		// EncryptedQtable[i] = EncryptedQtable[i] + Qnew * v_t * w_t - Qold * v_t * w_t
+
+		fhe_v_t := v_t_expanded[i]
+
+		// calc: Qnew * (v_t * w_t)
+		fhe_v_and_w_Qnew := testContext.Evaluator.MulRelinNew(Q_v_t_expanded[i], fhe_w_t, testContext.RlkSet)
+		// fhe_v_and_w_Qnew = testContext.Evaluator.MulRelinNew(fhe_v_and_w_Qnew, fhe_Q_news, testContext.RlkSet)
+
+		// calc: Qold * (v_t * w_t)
+		fhe_v_and_w_Qold := testContext.Evaluator.MulRelinNew(fhe_v_t, fhe_w_t, testContext.RlkSet)
+		fhe_v_and_w_Qold = testContext.Evaluator.MulRelinNew(fhe_v_and_w_Qold, EncryptedQtable[i], testContext.RlkSet)
+
+		// ノイズ増加を防ぐため復号して除去する
+		decrypt_fhe_v_and_w_Qnew := testContext.Decryptor.Decrypt(fhe_v_and_w_Qnew, testContext.SkSet)
+		re_fhe_v_and_w_Qnew := testContext.Encryptor.EncryptMsgNew(decrypt_fhe_v_and_w_Qnew, testContext.PkSet.GetPublicKey(user_name))
+		decrypt_fhe_v_and_w_Qold := testContext.Decryptor.Decrypt(fhe_v_and_w_Qold, testContext.SkSet)
+		re_fhe_v_and_w_Qold := testContext.Encryptor.EncryptMsgNew(decrypt_fhe_v_and_w_Qold, testContext.PkSet.GetPublicKey(user_name))
+
+		// calc: EncryptedQtable[i] += Qnew * v_t * w_t
+		EncryptedQtable[i] = testContext.Evaluator.AddNew(EncryptedQtable[i], re_fhe_v_and_w_Qnew)
+		// calc: EncryptedQtable[i] -= Qold * v_t * w_t (EncryptedQtable[i] = EncryptedQtable[i] + Qnew * v_t * w_t - Qold * v_t * w_t)
+		EncryptedQtable[i] = testContext.Evaluator.SubNew(EncryptedQtable[i], re_fhe_v_and_w_Qold)
+	}
+
+	return EncryptedQtable
+}
+
 func SecureQtableMultiUpdating2(datas []utils.QvalueUpdateData, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) {
 	// fmt.Println(datas)
 
