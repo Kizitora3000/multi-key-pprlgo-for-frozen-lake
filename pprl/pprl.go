@@ -114,6 +114,140 @@ func SecureQtableUpdating(v_t []float64, w_t []float64, Q_new float64, testConte
 	}
 }
 
+func SecureQtableMultiUpdating2(datas []utils.QvalueUpdateData, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) {
+	// fmt.Println(datas)
+
+	Nv := len(datas[0].V_t)
+	Na := len(datas[0].W_t)
+	Nuser := len(datas)
+
+	v := make([][]float64, Nv)
+	for state := 0; state < Nv; state++ {
+		v[state] = make([]float64, Na)
+
+		for user := 0; user < Nuser; user++ {
+			if datas[user].V_t[state] == 1 {
+				// v[state] を1で初期化
+				for i := 0; i < Na; i++ {
+					v[state][i] = 1
+				}
+			}
+		}
+	}
+
+	w := make([][]float64, Nv)
+	for state := 0; state < Nv; state++ {
+		w[state] = make([]float64, Na)
+
+		for user := 0; user < Nuser; user++ {
+			if datas[user].V_t[state] == 1 {
+				// W_t[i] == 1　となる部分のみに1を入れる
+				for i := 0; i < Na; i++ {
+					if datas[user].W_t[i] == 1 {
+						w[state][i] = 1
+					}
+				}
+			}
+		}
+	}
+
+	Qw := make([][]float64, Nv)
+	for state := 0; state < Nv; state++ {
+		Qw[state] = make([]float64, Na)
+
+		for user := 0; user < Nuser; user++ {
+			if datas[user].V_t[state] == 1 {
+				// w[state] を [0, ..., 0, Q, 0, ..., 0] で初期化 (QとなるのはW_t[i]=1となる部分)
+				for i := 0; i < Na; i++ {
+					Qw[state][i] += datas[user].W_t[i] * datas[user].Qvalue
+				}
+			}
+
+			if datas[0].V_t[state] == 1 && datas[1].V_t[state] == 1 {
+				for i := 0; i < Na; i++ {
+					Qw[state][i] = ((datas[0].W_t[i] * datas[0].Qvalue) + (datas[1].W_t[i] * datas[1].Qvalue)) / 2.0
+				}
+			}
+		}
+	}
+
+	for state := 0; state < Nv; state++ {
+		// EncryptedQtable[state] = EncryptedQtable[state] + Qnew * v_t * w_t - Qold * v_t * w_t
+
+		// calc: v_t * (Qnew * w_t)
+		v_and_Qnew_w := make([]float64, Na)
+		for action := 0; action < Na; action++ {
+			v_and_Qnew_w[action] = v[state][action] * Qw[state][action]
+		}
+
+		// get Qold
+		Qold_msg := testContext.Decryptor.Decrypt(EncryptedQtable[state], testContext.SkSet)
+		Qold := make([]float64, Na)
+		for action := 0; action < Na; action++ {
+			Qold[action] = real(Qold_msg.Value[action])
+		}
+
+		DecryptedQ := make([]float64, Na)
+		copy(DecryptedQ, Qold)
+
+		// calc: v_t * (Qold * w_t)
+		v_and_Qold_w := make([]float64, Na)
+		for action := 0; action < Na; action++ {
+			v_and_Qold_w[action] = v[state][action] * (Qold[action] * w[state][action])
+		}
+
+		// calc: v_t * w_t
+		v_w_t := make([]float64, Na)
+		for action := 0; action < Na; action++ {
+			for user := 0; user < Nuser; user++ {
+				if datas[user].V_t[state]*datas[user].W_t[action] == 1 {
+					v_w_t[action] = 1
+				}
+			}
+		}
+
+		// EncryptedQtable[i] = EncryptedQtable[i] + v_t * (Qnew * w_t) - v_t * (Qold * w_t)
+
+		// calc1: EncryptedQtable[i] += v_t * (Qnew * w_t)
+		for action := 0; action < Na; action++ {
+			DecryptedQ[action] += v_and_Qnew_w[action]
+		}
+		// calc2: EncryptedQtable[i] -= v_t * (Qold * w_t)
+		for action := 0; action < Na; action++ {
+			DecryptedQ[action] -= v_and_Qold_w[action]
+		}
+
+		DecryptedQ_msg := mkckks.NewMessage(testContext.Params)
+		for action := 0; action < Na; action++ {
+			DecryptedQ_msg.Value[action] = complex(DecryptedQ[action], 0) // 虚部は0
+		}
+		DecryptedQ_ct := testContext.Encryptor.EncryptMsgNew(DecryptedQ_msg, testContext.PkSet.GetPublicKey(user_name))
+
+		EncryptedQtable[state] = DecryptedQ_ct
+
+		// if datas[0].V_t[state] == 1 {
+		// 	fmt.Println(datas[0].Qvalue)
+		// 	fmt.Println(Qold)
+		// 	fmt.Println(DecryptedQ)
+		// }
+		// if datas[1].V_t[state] == 1 {
+		// 	fmt.Println(datas[1].Qvalue)
+		// 	fmt.Println(Qold)
+		// 	fmt.Println(DecryptedQ)
+		// }
+
+		// EncryptedQtable[state] = testContext.Evaluator.AddNew(EncryptedQtable[i], re_fhe_v_and_w_Qnew)
+		// EncryptedQtable[i] = testContext.Evaluator.SubNew(EncryptedQtable[i], re_fhe_v_and_w_Qold)
+	}
+
+	// fmt.Println("----------------")
+	// fmt.Println(v)
+	// fmt.Println()
+	// fmt.Println(Qw)
+	// fmt.Println()
+	// fmt.Println(w)
+}
+
 func SecureQtableMultiUpdating(datas []utils.QvalueUpdateData, testContext *utils.TestParams, EncryptedQtable []*mkckks.Ciphertext, user_name string) {
 	Nv := len(datas[0].V_t)
 	Na := len(datas[0].W_t)

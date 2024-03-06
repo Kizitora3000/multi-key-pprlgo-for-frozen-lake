@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	EPISODES   = 20
+	EPISODES   = 200
 	MAX_USERS  = 2
 	MAX_TRIALS = 1
 )
@@ -187,7 +187,7 @@ func main() {
 					temp[user_i] = utils.QvalueUpdateData{V_t: updateData.V_t, W_t: updateData.W_t, Qvalue: updateData.Qvalue}
 				}
 
-				pprl.SecureQtableMultiUpdating(temp, testContext, encryptedQtable, user_list[1])
+				pprl.SecureQtableMultiUpdating2(temp, testContext, encryptedQtable, user_list[1])
 
 				if *is_measure {
 					elapsed := time.Since(start)
