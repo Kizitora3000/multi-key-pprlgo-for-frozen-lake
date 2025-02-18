@@ -132,11 +132,6 @@ func main() {
 			for total_espisode < EPISODES {
 				var wg sync.WaitGroup
 
-				var start time.Time
-				if *is_measure {
-					start = time.Now()
-				}
-
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
 					// 各ユーザに独立したデータを渡すためにコピーを作成する．
 					localTestContext := testContext.Copy()
@@ -183,7 +178,12 @@ func main() {
 
 				// 代表として trial=0 の進捗を表示
 				if trial == 0 {
-					fmt.Printf("\r進捗: %5.1f%% (episode: (%d/%d), max trial: (%d))", float64(total_espisode)/float64(EPISODES)*100, MAX_TRIALS, total_espisode, EPISODES)
+					fmt.Printf("\r進捗: %5.1f%% (episode: %d/%d, max trial: %d)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1)
+				}
+
+				var start time.Time
+				if *is_measure {
+					start = time.Now()
 				}
 
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
