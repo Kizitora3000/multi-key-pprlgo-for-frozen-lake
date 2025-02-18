@@ -24,7 +24,7 @@ import (
 const (
 	EPISODES   = 200
 	MAX_USERS  = 1
-	MAX_TRIALS = 100
+	MAX_TRIALS = 1
 )
 
 // 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
@@ -77,7 +77,7 @@ func main() {
 
 			// ---------- set up for multi key ----------
 
-			ckks_params, err := ckks.NewParametersFromLiteral(utils.FAST_BUT_NOT_128) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
+			ckks_params, err := ckks.NewParametersFromLiteral(utils.PN15QP880) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
 			if err != nil {
 				panic(err)
 			}
@@ -181,30 +181,29 @@ func main() {
 					fmt.Printf("\r進捗: %5.1f%% (episode: %d/%d, max trial: %d)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1)
 				}
 
-				var start time.Time
-				if is_measure {
-					start = time.Now()
-				}
-
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
+					var start time.Time
+					if is_measure {
+						start = time.Now()
+					}
 					updateData := <-updateChannel
 					pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
-				}
 
-				if is_measure {
-					elapsed := time.Since(start)
+					if is_measure {
+						elapsed := time.Since(start)
 
-					elapsed_list = append(elapsed_list, elapsed)
+						elapsed_list = append(elapsed_list, elapsed)
 
-					elapsed_sum := time.Duration(0)
-					for i := 0; i < len(elapsed_list); i++ {
-						elapsed_sum += elapsed_list[i]
+						elapsed_sum := time.Duration(0)
+						for i := 0; i < len(elapsed_list); i++ {
+							elapsed_sum += elapsed_list[i]
+						}
+
+						elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
+
+						fmt.Printf(" %d: %s\n", len(elapsed_list), elapsed_average)
 					}
-
-					elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
-
-					fmt.Printf(" %d: %s\n", len(elapsed_list), elapsed_average)
 				}
 			}
 
