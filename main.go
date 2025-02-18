@@ -197,7 +197,7 @@ func main() {
 					elapsed_sum += elapsed_list[i]
 				}
 				elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
-				// trial > 2 以上の場合，代表としelて trial=0 の進捗を表示
+				// trial > 2 以上の場合，代表として trial=0 の進捗を表示
 				if trial == 0 {
 					fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均更新時間: %s (%d個)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1, elapsed_average, len(elapsed_list))
 				}
