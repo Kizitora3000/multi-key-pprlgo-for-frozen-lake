@@ -176,11 +176,6 @@ func main() {
 				goal_rate := float64(goal_count) / float64(total_espisode)
 				success_rate_per_episode[total_espisode] = goal_rate
 
-				// 代表として trial=0 の進捗を表示
-				if trial == 0 {
-					fmt.Printf("\r進捗: %5.1f%% (episode: %d/%d, max trial: %d)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1)
-				}
-
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
 					var start time.Time
@@ -192,18 +187,19 @@ func main() {
 
 					if is_measure {
 						elapsed := time.Since(start)
-
 						elapsed_list = append(elapsed_list, elapsed)
-
-						elapsed_sum := time.Duration(0)
-						for i := 0; i < len(elapsed_list); i++ {
-							elapsed_sum += elapsed_list[i]
-						}
-
-						elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
-
-						fmt.Printf(" %d: %s\n", len(elapsed_list), elapsed_average)
 					}
+				}
+
+				// 平均更新時間を算出
+				elapsed_sum := time.Duration(0)
+				for i := 0; i < len(elapsed_list); i++ {
+					elapsed_sum += elapsed_list[i]
+				}
+				elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
+				// trial > 2 以上の場合，代表としelて trial=0 の進捗を表示
+				if trial == 0 {
+					fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均更新時間: %s (%d個)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1, elapsed_average, len(elapsed_list))
 				}
 			}
 
