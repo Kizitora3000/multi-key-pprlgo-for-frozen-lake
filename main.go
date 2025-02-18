@@ -48,7 +48,7 @@ func main() {
 
 	var lake frozenlake.FrozenLake
 
-	switch *map_size {
+	switch map_size {
 	case "3x3":
 		lake = frozenlake.FrozenLake3x3
 	case "4x4":
@@ -182,7 +182,7 @@ func main() {
 				}
 
 				var start time.Time
-				if *is_measure {
+				if is_measure {
 					start = time.Now()
 				}
 
@@ -192,7 +192,7 @@ func main() {
 					pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
 				}
 
-				if *is_measure {
+				if is_measure {
 					elapsed := time.Since(start)
 
 					elapsed_list = append(elapsed_list, elapsed)
@@ -243,14 +243,14 @@ func main() {
 }
 
 // -s フラグ (マップサイズの指定) を解析
-func parseFlag() (*string, *bool) {
+func parseFlag() (string, bool) {
 	// -s フラグを定義
 	map_size := flag.String("s", "", "Size of the Frozen Lake map (options: 4x4, 5x5, 6x6)")
 	is_measure := flag.Bool("m", false, "Set to true to measure execution time.")
 
 	flag.Parse()
 
-	return map_size, is_measure
+	return *map_size, *is_measure
 }
 
 func encryptQtable(qtable [][]float64, testContext *utils.TestParams, user_name string) []*mkckks.Ciphertext {
