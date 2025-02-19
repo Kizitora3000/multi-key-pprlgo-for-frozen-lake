@@ -26,7 +26,7 @@ def plot_processing_time(file_path):
     num_people, times = load_data(file_path)
     
     plt.rcParams['font.family'] = 'MS Gothic'
-    plt.rcParams['font.size'] = 28
+    plt.rcParams['font.size'] = 32
 
     # カラーコードとマーカーの設定
     colors = {
@@ -38,7 +38,7 @@ def plot_processing_time(file_path):
     markers = {
         16: 'o',
         25: '^',
-        36: 'x'
+        36: 's'
     }
 
     plt.figure(figsize=(8, 6))
@@ -46,7 +46,9 @@ def plot_processing_time(file_path):
         plt.plot(num_people, time_list, 
                 marker=markers[state], 
                 color=colors[state],  
-                label=f'$N_s$: {state}')
+                label=f'$N_s$: {state}',
+                markersize=12,       # マーカーサイズを設定
+                linewidth=3)         # 線の太さを設定
     
     plt.xlabel("Number of users")
     plt.ylabel("Processing time [s]", labelpad=10)
