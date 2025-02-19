@@ -24,7 +24,7 @@ import (
 const (
 	EPISODES   = 200
 	MAX_USERS  = 1
-	MAX_TRIALS = 100
+	MAX_TRIALS = 1
 )
 
 // 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
@@ -48,7 +48,7 @@ func main() {
 
 	var lake frozenlake.FrozenLake
 
-	switch *map_size {
+	switch map_size {
 	case "3x3":
 		lake = frozenlake.FrozenLake3x3
 	case "4x4":
@@ -77,7 +77,7 @@ func main() {
 
 			// ---------- set up for multi key ----------
 
-			ckks_params, err := ckks.NewParametersFromLiteral(utils.FAST_BUT_NOT_128) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
+			ckks_params, err := ckks.NewParametersFromLiteral(utils.PN15QP880) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
 			if err != nil {
 				panic(err)
 			}
@@ -132,11 +132,6 @@ func main() {
 			for total_espisode < EPISODES {
 				var wg sync.WaitGroup
 
-				var start time.Time
-				if *is_measure {
-					start = time.Now()
-				}
-
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
 					// 各ユーザに独立したデータを渡すためにコピーを作成する．
 					localTestContext := testContext.Copy()
@@ -181,30 +176,32 @@ func main() {
 				goal_rate := float64(goal_count) / float64(total_espisode)
 				success_rate_per_episode[total_espisode] = goal_rate
 
-				// 代表として trial=0 の進捗を表示
-				if trial == 0 {
-					fmt.Printf("\r進捗: %5.1f%% (episode: (%d/%d), max trial: (%d))", float64(total_espisode)/float64(EPISODES)*100, MAX_TRIALS, total_espisode, EPISODES)
-				}
-
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
+					var start time.Time
+					if is_measure {
+						start = time.Now()
+					}
 					updateData := <-updateChannel
 					pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
+
+					if is_measure {
+						elapsed := time.Since(start)
+						elapsed_list = append(elapsed_list, elapsed)
+					}
 				}
 
-				if *is_measure {
-					elapsed := time.Since(start)
-
-					elapsed_list = append(elapsed_list, elapsed)
-
-					elapsed_sum := time.Duration(0)
-					for i := 0; i < len(elapsed_list); i++ {
-						elapsed_sum += elapsed_list[i]
-					}
-
-					elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
-
-					fmt.Printf(" %d: %s\n", len(elapsed_list), elapsed_average)
+				// 平均更新時間を算出
+				elapsed_sum := time.Duration(0)
+				for i := 0; i < len(elapsed_list); i++ {
+					elapsed_sum += elapsed_list[i]
+				}
+				elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
+				// trial > 2 以上の場合，代表として trial=0 の進捗を表示
+				if trial == 0 && len(elapsed_list) <= 5*MAX_USERS {
+					fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均更新時間: %s (%d個)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1, elapsed_average, len(elapsed_list))
+				} else {
+					fmt.Println("end")
 				}
 			}
 
@@ -243,14 +240,14 @@ func main() {
 }
 
 // -s フラグ (マップサイズの指定) を解析
-func parseFlag() (*string, *bool) {
+func parseFlag() (string, bool) {
 	// -s フラグを定義
 	map_size := flag.String("s", "", "Size of the Frozen Lake map (options: 4x4, 5x5, 6x6)")
 	is_measure := flag.Bool("m", false, "Set to true to measure execution time.")
 
 	flag.Parse()
 
-	return map_size, is_measure
+	return *map_size, *is_measure
 }
 
 func encryptQtable(qtable [][]float64, testContext *utils.TestParams, user_name string) []*mkckks.Ciphertext {
