@@ -5,7 +5,7 @@ import matplotlib.transforms as mtransforms
 import matplotlib.ticker as ticker
 import numpy as np
 
-# カスタムスケールの定義
+# 横軸を0からスタートさせたうえで0と1の間隔を狭めるようスケールを設定する
 class CustomScale(mscale.ScaleBase):
     name = 'custom'
 
@@ -67,13 +67,22 @@ def plot_processing_time(file_path):
     # plt.rcParams['font.family'] = 'MS Gothic'
     plt.rcParams['font.size'] = 28
 
+    # カラーコードの設定
+    colors = {
+        16: 'red',
+        25: 'blue',
+        36: 'green'
+    }
+
     plt.figure(figsize=(8, 6))
     for state, time_list in times.items():
-        plt.plot(num_people, time_list, marker='o', label=f'$N_s$: {state}')
+        plt.plot(num_people, time_list, marker='o', 
+                color=colors[state],  # カラーコードを指定
+                label=f'$N_s$: {state}')
     
     plt.xlabel("Number of users")
     plt.ylabel("Processing time [seconds]")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+    plt.legend(loc='lower right')
     plt.grid()
     
     # カスタムスケールを設定
