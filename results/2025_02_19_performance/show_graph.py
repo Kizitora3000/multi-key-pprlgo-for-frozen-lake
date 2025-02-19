@@ -49,7 +49,7 @@ def plot_processing_time(file_path):
                 label=f'$N_s$: {state}')
     
     plt.xlabel("Number of users")
-    plt.ylabel("Processing time [s]")
+    plt.ylabel("Processing time [s]", labelpad=10)
     plt.legend(loc='lower right')
     plt.grid()
 
@@ -58,7 +58,7 @@ def plot_processing_time(file_path):
     plt.gca().yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     
     # 軸の範囲を設定
-    plt.xlim(0.8, max(num_people) * 1.1)
+    plt.xlim(0.8, max(num_people) * 1.07)
     plt.ylim(0, max(max(time_list) for time_list in times.values()) * 1.1)
     
     plt.show()
