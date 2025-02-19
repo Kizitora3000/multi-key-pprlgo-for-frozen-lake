@@ -28,16 +28,23 @@ def plot_processing_time(file_path):
     plt.rcParams['font.family'] = 'MS Gothic'
     plt.rcParams['font.size'] = 28
 
-    # カラーコードの設定
+    # カラーコードとマーカーの設定
     colors = {
         16: 'red',
         25: 'blue',
         36: 'green'
     }
+    
+    markers = {
+        16: 'o',
+        25: '^',
+        36: 'x'
+    }
 
     plt.figure(figsize=(8, 6))
     for state, time_list in times.items():
-        plt.plot(num_people, time_list, marker='o', 
+        plt.plot(num_people, time_list, 
+                marker=markers[state], 
                 color=colors[state],  
                 label=f'$N_s$: {state}')
     
