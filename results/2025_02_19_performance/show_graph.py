@@ -64,7 +64,7 @@ def load_data(file_path):
 def plot_processing_time(file_path):
     num_people, times = load_data(file_path)
     
-    # plt.rcParams['font.family'] = 'MS Gothic'
+    plt.rcParams['font.family'] = 'MS Gothic'
     plt.rcParams['font.size'] = 28
 
     # カラーコードの設定
@@ -81,7 +81,7 @@ def plot_processing_time(file_path):
                 label=f'$N_s$: {state}')
     
     plt.xlabel("Number of users")
-    plt.ylabel("Processing time [seconds]")
+    plt.ylabel("Processing time [second]")
     plt.legend(loc='lower right')
     plt.grid()
     
