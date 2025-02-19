@@ -1,5 +1,48 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.scale as mscale
+import matplotlib.transforms as mtransforms
+import matplotlib.ticker as ticker
+import numpy as np
+
+# カスタムスケールの定義
+class CustomScale(mscale.ScaleBase):
+    name = 'custom'
+
+    def __init__(self, axis, **kwargs):
+        mscale.ScaleBase.__init__(self, axis)
+
+    def get_transform(self):
+        return self.CustomTransform()
+
+    def set_default_locators_and_formatters(self, axis):
+        axis.set_major_locator(ticker.MaxNLocator(integer=True))  # 整数値のみを配置
+
+    class CustomTransform(mtransforms.Transform):
+        input_dims = 1
+        output_dims = 1
+        is_separable = True
+
+        def transform_non_affine(self, a):
+            # 0から1の間を圧縮する変換
+            return np.where(a <= 1, a * 0.3, 0.3 + (a - 1) * 1.0)
+
+        def inverted(self):
+            return CustomScale.InvertedCustomTransform()
+
+    class InvertedCustomTransform(mtransforms.Transform):
+        input_dims = 1
+        output_dims = 1
+        is_separable = True
+
+        def transform_non_affine(self, a):
+            return np.where(a <= 0.3, a / 0.3, 1 + (a - 0.3) / 1.0)
+
+        def inverted(self):
+            return CustomScale.CustomTransform()
+
+# スケールを登録
+mscale.register_scale(CustomScale)
 
 # CSVファイルの読み込み
 def load_data(file_path):
@@ -30,10 +73,19 @@ def plot_processing_time(file_path):
     
     plt.xlabel("Number of users")
     plt.ylabel("Processing time [seconds]")
-    # plt.title("人数ごとの処理時間 (状態数別)")
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
     plt.grid()
-    plt.xticks(num_people)
+    
+    # カスタムスケールを設定
+    plt.gca().set_xscale('custom')
+    
+    # 整数値のみの目盛りを設定
+    plt.gca().yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    
+    # 軸の範囲を0から設定
+    plt.xlim(0, max(num_people) * 1.1)
+    plt.ylim(0, max(max(time_list) for time_list in times.values()) * 1.1)
+    
     plt.show()
 
 file_path = "performance.csv"
