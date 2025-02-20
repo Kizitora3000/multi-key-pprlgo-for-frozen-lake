@@ -191,15 +191,28 @@ func main() {
 					}
 				}
 
-				// 平均更新時間を算出
+				// 平均処理時間を算出し、終了予測時刻を計算
 				elapsed_sum := time.Duration(0)
 				for i := 0; i < len(elapsed_list); i++ {
 					elapsed_sum += elapsed_list[i]
 				}
 				elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
+
+				// 現在の進捗状況から残りの処理時間を予測
+				remaining_cnt := 5*MAX_USERS - len(elapsed_list)
+				expected_total_time := elapsed_average * time.Duration(remaining_cnt)
+				estimated_end_time := time.Now().Add(expected_total_time)
+
 				// trial > 2 以上の場合，代表として trial=0 の進捗を表示
 				if trial == 0 && len(elapsed_list) <= 5*MAX_USERS {
-					fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均処理時間: %s (%d個)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1, elapsed_average, len(elapsed_list))
+					fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均処理時間: %s (%d個), 予測終了時刻: %s",
+						float64(total_espisode)/float64(EPISODES)*100,
+						total_espisode,
+						EPISODES,
+						trial+1,
+						elapsed_average,
+						len(elapsed_list),
+						estimated_end_time.Format("15:04:05"))
 				} else {
 					fmt.Println("end")
 				}
