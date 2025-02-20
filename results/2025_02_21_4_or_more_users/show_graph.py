@@ -30,9 +30,9 @@ def plot_processing_time(file_path):
 
     # カラーコードとマーカーの設定
     colors = {
-        16: 'red',
-        25: 'blue',
-        36: 'green'
+        16: '#ff00ff',
+        25: '#ff8c00',
+        36: '#008080'
     }
     
     markers = {
