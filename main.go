@@ -199,7 +199,8 @@ func main() {
 				elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
 
 				// 現在の進捗状況から残りの処理時間を予測
-				remaining_cnt := 5*MAX_USERS - len(elapsed_list)
+				MAX_CNT := 5
+				remaining_cnt := MAX_CNT*MAX_USERS - len(elapsed_list)
 				expected_total_time := elapsed_average * time.Duration(remaining_cnt)
 				estimated_end_time := time.Now().Add(expected_total_time)
 
@@ -209,8 +210,9 @@ func main() {
 				remaining_seconds := int(remaining_time.Seconds()) % 60
 
 				// trial > 2 以上の場合，代表として trial=0 の進捗を表示
-				if trial == 0 && len(elapsed_list) <= 5*MAX_USERS {
-					fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均処理時間: %s (%d個), 予測終了時刻: %s (残り %d分%d秒)",
+				if trial == 0 && len(elapsed_list) <= MAX_CNT*MAX_USERS {
+					fmt.Printf("進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均処理時間: %s (%d個), 予測終了時刻: %s (残り %d分%d秒)\n",
+						// fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均処理時間: %s (%d個), 予測終了時刻: %s (残り %d分%d秒)",
 						float64(total_espisode)/float64(EPISODES)*100,
 						total_espisode,
 						EPISODES,
