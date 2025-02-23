@@ -28,7 +28,7 @@ h_pprl_5x5, = plt.plot(mkpprl_5x5_2_agents['Episode'], mkpprl_5x5_2_agents['Aver
 h_pprl_5x5, = plt.plot(mkpprl_5x5_3_agents['Episode'], mkpprl_5x5_3_agents['Average Success Rate'], 
                        label='3 agents', color='green', linestyle='-', linewidth=3)
 h_pprl_5x5, = plt.plot(mkpprl_5x5_4_agents['Episode'], mkpprl_5x5_4_agents['Average Success Rate'], 
-                       label='4 agents', color='yellow', linestyle='-', linewidth=3)
+                       label='4 agents', color='#edb918', linestyle='-', linewidth=3)
 h_pprl_5x5, = plt.plot(mkpprl_5x5_5_agents['Episode'], mkpprl_5x5_5_agents['Average Success Rate'], 
                        label='5 agents', color='purple', linestyle='-', linewidth=3)
 
