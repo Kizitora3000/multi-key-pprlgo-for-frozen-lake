@@ -6,8 +6,9 @@
 2. cd multi-key-pprlgo-for-frozen-lake
 3. go get MKpprlgoFrozenLake/mkckks
 4. go mod download github.com/ldsec/lattigo/v2
-5. go run main.go -s 4x4
+5. go run main.go -s 4x4 -m false
     + -s: map size (4x4 or 5x5 or 6x6)
+    + -m: evalation performance
 
 ## Setup paramerters
 

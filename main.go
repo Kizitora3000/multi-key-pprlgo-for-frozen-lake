@@ -23,7 +23,7 @@ import (
 
 const (
 	EPISODES   = 200
-	MAX_USERS  = 1
+	MAX_USERS  = 5
 	MAX_TRIALS = 100
 )
 
@@ -48,7 +48,7 @@ func main() {
 
 	var lake frozenlake.FrozenLake
 
-	switch *map_size {
+	switch map_size {
 	case "3x3":
 		lake = frozenlake.FrozenLake3x3
 	case "4x4":
@@ -176,35 +176,63 @@ func main() {
 				goal_rate := float64(goal_count) / float64(total_espisode)
 				success_rate_per_episode[total_espisode] = goal_rate
 
-				// 代表として trial=0 の進捗を表示
-				if trial == 0 {
-					fmt.Printf("\r進捗: %5.1f%% (episode: %d/%d, max trial: %d)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1)
-				}
-
-				var start time.Time
-				if *is_measure {
-					start = time.Now()
-				}
-
 				// 各ユーザからの更新情報に基づいてクラウドプラットフォームのQテーブルを更新する．
 				for user_i := 0; user_i < MAX_USERS; user_i++ {
+					var start time.Time
+					if is_measure {
+						start = time.Now()
+					}
 					updateData := <-updateChannel
 					pprl.SecureQtableUpdating(updateData.V_t, updateData.W_t, updateData.Qvalue, testContext, encryptedQtable, user_list[user_i+1])
+
+					if is_measure {
+						elapsed := time.Since(start)
+						elapsed_list = append(elapsed_list, elapsed)
+					}
 				}
 
-				if *is_measure {
-					elapsed := time.Since(start)
-
-					elapsed_list = append(elapsed_list, elapsed)
-
+				if is_measure {
+					// 平均処理時間を算出し、終了予測時刻を計算
 					elapsed_sum := time.Duration(0)
 					for i := 0; i < len(elapsed_list); i++ {
 						elapsed_sum += elapsed_list[i]
 					}
-
 					elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
 
-					fmt.Printf(" %d: %s\n", len(elapsed_list), elapsed_average)
+					// 現在の進捗状況から残りの処理時間を予測
+					MAX_CNT := 5
+					remaining_cnt := MAX_CNT*MAX_USERS - len(elapsed_list)
+					expected_total_time := elapsed_average * time.Duration(remaining_cnt)
+					estimated_end_time := time.Now().Add(expected_total_time)
+
+					// 残り時間を計算
+					remaining_time := expected_total_time
+					remaining_minutes := int(remaining_time.Minutes())
+					remaining_seconds := int(remaining_time.Seconds()) % 60
+
+					// trial > 2 以上の場合，代表として trial=0 の進捗を表示
+					if trial == 0 && len(elapsed_list) <= MAX_CNT*MAX_USERS {
+						fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均処理時間: %s (%d個), 予測終了時刻: %s (残り %d分%d秒)",
+							float64(total_espisode)/float64(EPISODES)*100,
+							total_espisode,
+							EPISODES,
+							trial+1,
+							elapsed_average,
+							len(elapsed_list),
+							estimated_end_time.Format("15:04:05"),
+							remaining_minutes,
+							remaining_seconds)
+					} else {
+						fmt.Println("end")
+					}
+				} else {
+					if trial == 0 {
+						fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d)",
+							float64(total_espisode)/float64(EPISODES)*100,
+							total_espisode,
+							EPISODES,
+							trial+1)
+					}
 				}
 			}
 
@@ -243,14 +271,14 @@ func main() {
 }
 
 // -s フラグ (マップサイズの指定) を解析
-func parseFlag() (*string, *bool) {
+func parseFlag() (string, bool) {
 	// -s フラグを定義
 	map_size := flag.String("s", "", "Size of the Frozen Lake map (options: 4x4, 5x5, 6x6)")
 	is_measure := flag.Bool("m", false, "Set to true to measure execution time.")
 
 	flag.Parse()
 
-	return map_size, is_measure
+	return *map_size, *is_measure
 }
 
 func encryptQtable(qtable [][]float64, testContext *utils.TestParams, user_name string) []*mkckks.Ciphertext {
