@@ -23,8 +23,8 @@ import (
 
 const (
 	EPISODES   = 200
-	MAX_USERS  = 1
-	MAX_TRIALS = 1
+	MAX_USERS  = 5
+	MAX_TRIALS = 100
 )
 
 // 各ユーザからサーバへ送信されるQ値の更新情報を管理するためのチャネル
@@ -77,7 +77,7 @@ func main() {
 
 			// ---------- set up for multi key ----------
 
-			ckks_params, err := ckks.NewParametersFromLiteral(utils.PN15QP880) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
+			ckks_params, err := ckks.NewParametersFromLiteral(utils.FAST_BUT_NOT_128) // utils.FAST_BUT_NOT_128, utils.PN15QP880 (pprlと同じパラメータ)
 			if err != nil {
 				panic(err)
 			}
@@ -191,17 +191,48 @@ func main() {
 					}
 				}
 
-				// 平均更新時間を算出
-				elapsed_sum := time.Duration(0)
-				for i := 0; i < len(elapsed_list); i++ {
-					elapsed_sum += elapsed_list[i]
-				}
-				elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
-				// trial > 2 以上の場合，代表として trial=0 の進捗を表示
-				if trial == 0 && len(elapsed_list) <= 5*MAX_USERS {
-					fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均更新時間: %s (%d個)", float64(total_espisode)/float64(EPISODES)*100, total_espisode, EPISODES, trial+1, elapsed_average, len(elapsed_list))
+				if is_measure {
+					// 平均処理時間を算出し、終了予測時刻を計算
+					elapsed_sum := time.Duration(0)
+					for i := 0; i < len(elapsed_list); i++ {
+						elapsed_sum += elapsed_list[i]
+					}
+					elapsed_average := elapsed_sum / time.Duration(len(elapsed_list))
+
+					// 現在の進捗状況から残りの処理時間を予測
+					MAX_CNT := 5
+					remaining_cnt := MAX_CNT*MAX_USERS - len(elapsed_list)
+					expected_total_time := elapsed_average * time.Duration(remaining_cnt)
+					estimated_end_time := time.Now().Add(expected_total_time)
+
+					// 残り時間を計算
+					remaining_time := expected_total_time
+					remaining_minutes := int(remaining_time.Minutes())
+					remaining_seconds := int(remaining_time.Seconds()) % 60
+
+					// trial > 2 以上の場合，代表として trial=0 の進捗を表示
+					if trial == 0 && len(elapsed_list) <= MAX_CNT*MAX_USERS {
+						fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d), 平均処理時間: %s (%d個), 予測終了時刻: %s (残り %d分%d秒)",
+							float64(total_espisode)/float64(EPISODES)*100,
+							total_espisode,
+							EPISODES,
+							trial+1,
+							elapsed_average,
+							len(elapsed_list),
+							estimated_end_time.Format("15:04:05"),
+							remaining_minutes,
+							remaining_seconds)
+					} else {
+						fmt.Println("end")
+					}
 				} else {
-					fmt.Println("end")
+					if trial == 0 {
+						fmt.Printf("\r進捗:%5.1f%% (episode: %d/%d, max trial: %d)",
+							float64(total_espisode)/float64(EPISODES)*100,
+							total_espisode,
+							EPISODES,
+							trial+1)
+					}
 				}
 			}
 
