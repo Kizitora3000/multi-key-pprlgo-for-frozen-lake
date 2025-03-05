@@ -30,9 +30,9 @@ def plot_processing_time(file_path):
 
     # カラーコードとマーカーの設定
     colors = {
-        16: 'purple', # '#5D3FD3',
-        25: 'black', # '50C878',
-        36: '#800020'
+        16: '#ff00ff',
+        25: '#ff8c00',
+        36: '#008080'
     }
     
     markers = {
@@ -62,10 +62,11 @@ def plot_processing_time(file_path):
     # 軸の範囲を設定
     plt.xlim(0.8, max(num_people) * 1.07)
     plt.ylim(0, max(max(time_list) for time_list in times.values()) * 1.1)
-    
+
     plt.subplots_adjust(top=0.995,bottom=0.125,left=0.075,right=0.995)
 
     plt.show()
 
 file_path = "performance.csv"
+
 plot_processing_time(file_path)
